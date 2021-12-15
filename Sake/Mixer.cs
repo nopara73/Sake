@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -207,13 +208,15 @@ namespace Sake
 
         public IEnumerable<ulong> Mix(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
         {
+            var setCandidates = new Dictionary<int, IEnumerable<ulong>>();
+
             var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
 
             ulong dustThresholdPlusFee = DustThreshold + OutputFee;
 
             var denoms = DenominationProbabilities.OrderByDescending(x => x.Key).Where(x => x.Value > 1).Select(x => x.Key).ToList();
 
-            var bestSet = new List<ulong>();
+            var naiveSet = new List<ulong>();
             var remaining = myInputs.Sum();
             foreach (var denomPlusFee in denoms.Where(x => x <= remaining))
             {
@@ -224,17 +227,20 @@ namespace Sake
 
                 while (denomPlusFee <= remaining)
                 {
-                    bestSet.Add(denomPlusFee);
+                    naiveSet.Add(denomPlusFee);
                     remaining -= denomPlusFee;
                 }
             }
 
             if (remaining >= dustThresholdPlusFee)
             {
-                bestSet.Add(remaining);
+                naiveSet.Add(remaining);
             }
 
-            for (int i = 0; i < 10000; i++)
+            setCandidates.Add(naiveSet.Count, naiveSet);
+
+            var sw = Stopwatch.StartNew();
+            while (true)
             {
                 var currSet = new List<ulong>();
                 remaining = myInputs.Sum();
@@ -252,22 +258,27 @@ namespace Sake
                         currSet.Add(denomPlusFee);
                         remaining -= denomPlusFee;
                     }
-                    if (currSet.Count >= bestSet.Count) break;
-                }
-                if (currSet.Count >= bestSet.Count) continue;
 
-                if (remaining >= dustThresholdPlusFee)
-                {
-                    currSet.Add(remaining);
+                    if (currSet.Count > naiveSet.Count && currSet.Count > 3) break;
                 }
 
-                if (currSet.Count < bestSet.Count)
+                if (currSet.Count <= naiveSet.Count || currSet.Count <= 3)
                 {
-                    bestSet = currSet;
+                    if (remaining >= dustThresholdPlusFee)
+                    {
+                        currSet.Add(remaining);
+                    }
+
+                    setCandidates.TryAdd(currSet.Count, currSet);
+                }
+
+                if (sw.ElapsedMilliseconds > 30)
+                {
+                    break;
                 }
             }
 
-            return bestSet;
+            return setCandidates.RandomElement().Value;
         }
     }
 }
