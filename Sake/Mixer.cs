@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -239,7 +238,7 @@ namespace Sake
 
             setCandidates.Add(naiveSet.Count, naiveSet);
 
-            var sw = Stopwatch.StartNew();
+            var before = DateTimeOffset.UtcNow;
             while (true)
             {
                 var currSet = new List<ulong>();
@@ -272,7 +271,7 @@ namespace Sake
                     setCandidates.TryAdd(currSet.Count, currSet);
                 }
 
-                if (sw.ElapsedMilliseconds > 30)
+                if ((DateTimeOffset.UtcNow - before).TotalMilliseconds > 30)
                 {
                     break;
                 }
