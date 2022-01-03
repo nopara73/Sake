@@ -2,8 +2,8 @@
 using System;
 using System.Linq;
 
-var inputCount = 300;
-var userCount = 100;
+var inputCount = 200;
+var userCount = 60;
 var remixRatio = 0.3;
 
 var preRandomAmounts = Sample.Amounts.RandomElements(inputCount);

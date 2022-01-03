@@ -277,7 +277,18 @@ namespace Sake
                 }
             }
 
-            return setCandidates.RandomElement().Value;
+            var rand = new Random();
+            var counts = setCandidates.Select(x => x.Key).Distinct().OrderBy(x => x);
+            var selectedCount = counts.Max();
+            foreach(var count in counts)
+            {
+                if(rand.Next(0, 10) < 3)
+                {
+                    selectedCount = count;
+                    break;
+                }
+            }
+            return setCandidates.Where(x=>x.Key == selectedCount).RandomElement().Value;
         }
     }
 }
