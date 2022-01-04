@@ -26,10 +26,10 @@ namespace Sake
                         others.AddRange(inputArray[j]);
                     }
                 }
-                yield return Mix(currentUser, others);
+                yield return Decompose(currentUser, others);
             }
         }
 
-        public IEnumerable<ulong> Mix(IEnumerable<ulong> myInputs, IEnumerable<ulong> othersInputs);
+        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputs, IEnumerable<ulong> othersInputs);
     }
 }

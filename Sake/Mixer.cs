@@ -33,7 +33,11 @@ namespace Sake
         public uint InputSize { get; }
         public uint OutputSize { get; }
         public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
-        public Dictionary<ulong, uint> DenominationProbabilities { get; } = new Dictionary<ulong, uint>();
+
+        /// <summary>
+        /// Pair of denomination and the number of times we found it in a breakdown.
+        /// </summary>
+        public Dictionary<ulong, uint> DenominationFrequencies { get; } = new Dictionary<ulong, uint>();
 
         private IOrderedEnumerable<ulong> CreateDenominationsPlusFees()
         {
@@ -156,7 +160,7 @@ namespace Sake
         {
             var inputArray = inputs.ToArray();
 
-            SetProbabilities(inputArray.SelectMany(x => x));
+            SetDenominationFrequencies(inputArray.SelectMany(x => x));
 
             for (int i = 0; i < inputArray.Length; i++)
             {
@@ -169,57 +173,11 @@ namespace Sake
                         others.AddRange(inputArray[j]);
                     }
                 }
-                yield return Mix(currentUser, others).Select(x => x - OutputFee);
+                yield return Decompose(currentUser, others).Select(x => x - OutputFee);
             }
         }
 
-        private void SetProbabilities(IEnumerable<ulong> inputs)
-        {
-            var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
-            foreach (var input in inputs)
-            {
-                foreach (var denom in BreakDown(input, secondLargestInput))
-                {
-                    if (!DenominationProbabilities.TryAdd(denom, 1))
-                    {
-                        DenominationProbabilities[denom]++;
-                    }
-                }
-            }
-        }
-
-        private IEnumerable<ulong> BreakDown(ulong input, ulong secondLargestInput)
-        {
-            var inputMinusFee = input - InputFee;
-            var secondLargestInputMinusFee = secondLargestInput - InputFee;
-
-            var remaining = inputMinusFee;
-            foreach (var denomPlusFee in DenominationsPlusFees)
-            {
-                if (denomPlusFee > secondLargestInputMinusFee)
-                {
-                    continue;
-                }
-
-                if (denomPlusFee < MinAllowedOutputAmountPlusFee || remaining < MinAllowedOutputAmountPlusFee)
-                {
-                    break;
-                }
-
-                while (denomPlusFee <= remaining)
-                {
-                    yield return denomPlusFee;
-                    remaining -= denomPlusFee;
-                }
-            }
-
-            if (remaining >= MinAllowedOutputAmountPlusFee)
-            {
-                yield return remaining;
-            }
-        }
-
-        public IEnumerable<ulong> Mix(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
+        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
         {
             var setCandidates = new Dictionary<ulong, (IEnumerable<ulong> Decomp, ulong Cost)>();
             var random = new Random();
@@ -227,7 +185,7 @@ namespace Sake
 
             var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
 
-            var denoms = DenominationProbabilities.OrderByDescending(x => x.Key).Where(x => x.Value > 1).Select(x => x.Key).ToList();
+            var denoms = DenominationFrequencies.OrderByDescending(x => x.Key).Where(x => x.Value > 1).Select(x => x.Key).ToList();
 
             var naiveSet = new List<ulong>();
             var remaining = myInputs.Sum();
@@ -345,6 +303,50 @@ namespace Sake
             }
 
             return orderedCandidates.First().Decomp;
+        }
+
+        private void SetDenominationFrequencies(IEnumerable<ulong> inputs)
+        {
+            var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
+            IEnumerable<ulong> demonsForBreakDown = DenominationsPlusFees.Where(x => x <= secondLargestInput - InputFee);
+
+            foreach (var input in inputs)
+            {
+                foreach (var denom in BreakDown(input, demonsForBreakDown))
+                {
+                    if (!DenominationFrequencies.TryAdd(denom, 1))
+                    {
+                        DenominationFrequencies[denom]++;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Greedily decomposes an amount to the given denominations.
+        /// </summary>
+        private IEnumerable<ulong> BreakDown(ulong input, IEnumerable<ulong> denominations)
+        {
+            var remaining = input - InputFee;
+
+            foreach (var denomPlusFee in denominations)
+            {
+                if (denomPlusFee < MinAllowedOutputAmountPlusFee || remaining < MinAllowedOutputAmountPlusFee)
+                {
+                    break;
+                }
+
+                while (denomPlusFee <= remaining)
+                {
+                    yield return denomPlusFee;
+                    remaining -= denomPlusFee;
+                }
+            }
+
+            if (remaining >= MinAllowedOutputAmountPlusFee)
+            {
+                yield return remaining;
+            }
         }
     }
 }
