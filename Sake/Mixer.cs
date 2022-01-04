@@ -190,7 +190,7 @@ namespace Sake
             var myInputSum = myInputs.Sum();
             var remaining = myInputSum;
 
-            var setCandidates = new Dictionary<ulong, (IEnumerable<ulong> Decomp, ulong Cost)>();
+            var setCandidates = new Dictionary<int, (IEnumerable<ulong> Decomp, ulong Cost)>();
             var random = new Random();
 
             // How many times can we participate with the same denomination.
@@ -245,8 +245,14 @@ namespace Sake
                 naiveSet.Add(remaining);
             }
 
+            HashCode hash = new();
+            foreach (var item in naiveSet.OrderBy(x => x))
+            {
+                hash.Add(item);
+            }
+
             setCandidates.Add(
-                naiveSet.OrderBy(x => x).Aggregate((x, y) => 31 * x + y), // Create hash to ensure uniqueness.
+                hash.ToHashCode(), // Create hash to ensure uniqueness.
                 (naiveSet, loss + (ulong)naiveSet.Count * OutputFee)); // The cost is the remaining + output cost.
 
             // Create many decompositions for optimization.
@@ -296,7 +302,13 @@ namespace Sake
                         currSet.Add(remaining);
                     }
 
-                    setCandidates.TryAdd(currSet.OrderBy(x => x).Aggregate((x, y) => 31 * x + y), (currSet, loss + (ulong)currSet.Count * OutputFee));
+                    hash = new();
+                    foreach (var item in currSet.OrderBy(x => x))
+                    {
+                        hash.Add(item);
+                    }
+
+                    setCandidates.TryAdd(hash.ToHashCode(), (currSet, loss + (ulong)currSet.Count * OutputFee));
                 }
             }
             while ((DateTimeOffset.UtcNow - before).TotalMilliseconds <= 30);
