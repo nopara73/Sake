@@ -19,6 +19,8 @@ namespace Sake
             OutputSize = outputSize;
 
             MinAllowedOutputAmountPlusFee = minAllowedOutputAmount + OutputFee;
+
+            // Create many standard denominations.
             DenominationsPlusFees = CreateDenominationsPlusFees();
         }
 
