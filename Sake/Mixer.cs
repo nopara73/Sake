@@ -202,7 +202,7 @@ namespace Sake
                 var denomUsage = 0;
                 while (denomPlusFee <= remaining)
                 {
-                    if (remaining < MinAllowedOutputAmountPlusFee || denomUsage >= maxDenomUsage)
+                    if (remaining < MinAllowedOutputAmountPlusFee)
                     {
                         end = true;
                         break;
@@ -211,6 +211,12 @@ namespace Sake
                     naiveSet.Add(denomPlusFee);
                     remaining -= denomPlusFee;
                     denomUsage++;
+
+                    if (denomUsage >= maxDenomUsage)
+                    {
+                        end = true;
+                        break;
+                    }
                 }
 
                 if (end)
