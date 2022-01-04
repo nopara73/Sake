@@ -192,6 +192,8 @@ namespace Sake
 
             var setCandidates = new Dictionary<ulong, (IEnumerable<ulong> Decomp, ulong Cost)>();
             var random = new Random();
+
+            // How many times can we participate with the same denomination.
             var maxDenomUsage = random.Next(2, 8);
 
             // Create the most naive decomposition for starter.
@@ -212,6 +214,7 @@ namespace Sake
                     remaining -= denomPlusFee;
                     denomUsage++;
 
+                    // If we reached the limit, the rest will be change.
                     if (denomUsage >= maxDenomUsage)
                     {
                         end = true;
@@ -232,6 +235,7 @@ namespace Sake
             }
             else
             {
+                // This goes to miners.
                 loss = remaining;
             }
 
@@ -241,8 +245,11 @@ namespace Sake
                 naiveSet.Add(remaining);
             }
 
-            setCandidates.Add(naiveSet.OrderBy(x => x).Aggregate((x, y) => 31 * x + y), (naiveSet, loss + (ulong)naiveSet.Count * OutputFee));
+            setCandidates.Add(
+                naiveSet.OrderBy(x => x).Aggregate((x, y) => 31 * x + y), // Create hash to ensure uniqueness.
+                (naiveSet, loss + (ulong)naiveSet.Count * OutputFee)); // The cost is the remaining + output cost.
 
+            // Create many decompositions for optimization.
             var before = DateTimeOffset.UtcNow;
             while (true)
             {
