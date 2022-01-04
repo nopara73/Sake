@@ -255,7 +255,7 @@ namespace Sake
             {
                 var currSet = new List<ulong>();
                 remaining = myInputs.Sum();
-                while (true)
+                do
                 {
                     var denomPlusFees = denoms.Where(x => x <= remaining && x >= (remaining / 3)).ToList();
                     var denomPlusFee = denomPlusFees.RandomElement();
@@ -270,9 +270,8 @@ namespace Sake
                         currSet.Add(denomPlusFee);
                         remaining -= denomPlusFee;
                     }
-
-                    if (currSet.Count > naiveSet.Count && currSet.Count > 3) break;
                 }
+                while (currSet.Count <= naiveSet.Count || currSet.Count <= 3);
 
                 if (currSet.Count <= naiveSet.Count || currSet.Count <= 3)
                 {
