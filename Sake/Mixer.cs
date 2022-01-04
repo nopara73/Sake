@@ -258,8 +258,12 @@ namespace Sake
                 do
                 {
                     var denomPlusFees = denoms.Where(x => x <= remaining && x >= (remaining / 3)).ToList();
-                    var denomPlusFee = denomPlusFees.RandomElement();
+                    if (!denomPlusFees.Any())
+                    {
+                        break;
+                    }
 
+                    var denomPlusFee = denomPlusFees.RandomElement();
                     if (remaining < MinAllowedOutputAmountPlusFee)
                     {
                         break;
@@ -273,6 +277,7 @@ namespace Sake
                 }
                 while (currSet.Count <= naiveSet.Count || currSet.Count <= 3);
 
+                // If currSet.Count <= 3 then we still generate sets to add ambiguity. 
                 if (currSet.Count <= naiveSet.Count || currSet.Count <= 3)
                 {
                     loss = 0;
@@ -285,6 +290,7 @@ namespace Sake
                         loss = remaining;
                     }
 
+                    // When not even the minimum denom is reached.
                     if (currSet.Count == 0)
                     {
                         currSet.Add(remaining);
