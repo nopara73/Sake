@@ -8,7 +8,7 @@ namespace Sake
 {
     internal class Mixer : IMixer
     {
-        public Mixer(uint feeRate = 10, uint inputSize = 69, uint outputSize = 33, uint sanityFeeRate = 2, ulong sanityFee = 1000)
+        public Mixer(uint feeRate = 10, uint inputSize = 69, uint outputSize = 33, uint sanityFeeRate = 2, ulong sanityFee = 5000)
         {
             FeeRate = feeRate;
             InputSize = inputSize;
@@ -207,8 +207,9 @@ namespace Sake
 
         public IEnumerable<ulong> Mix(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
         {
-            var setCandidates = new Dictionary<ulong, IEnumerable<ulong>>();
-            var maxDenomUsage = new Random().Next(1, 8);
+            var setCandidates = new Dictionary<ulong, (IEnumerable<ulong> Decomp,ulong Cost)>();
+            var random=new Random();
+            var maxDenomUsage = random.Next(2, 8);
 
             var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
 
@@ -244,9 +245,14 @@ namespace Sake
                 }
             }
 
+            var loss = 0UL;
             if (remaining >= dustThresholdPlusFee)
             {
                 naiveSet.Add(remaining);
+            }
+            else
+            {
+                loss = remaining;
             }
 
             // This can happen when smallest denom is larger than the input sum.
@@ -255,7 +261,7 @@ namespace Sake
                 naiveSet.Add(remaining);
             }
 
-            setCandidates.Add(naiveSet.Aggregate((x, y) => 31 * x + y), naiveSet);
+            setCandidates.Add(naiveSet.OrderBy(x => x).Aggregate((x, y) => 31 * x + y), (naiveSet,loss + (ulong)naiveSet.Count * OutputFee));
 
             var before = DateTimeOffset.UtcNow;
             while (true)
@@ -283,9 +289,14 @@ namespace Sake
 
                 if (currSet.Count <= naiveSet.Count || currSet.Count <= 3)
                 {
+                    loss = 0;
                     if (remaining >= dustThresholdPlusFee)
                     {
                         currSet.Add(remaining);
+                    }
+                    else
+                    {
+                        loss = remaining;
                     }
 
                     if (currSet.Count == 0)
@@ -293,7 +304,7 @@ namespace Sake
                         currSet.Add(remaining);
                     }
 
-                    setCandidates.TryAdd(currSet.Aggregate((x, y) => 31 * x + y), currSet);
+                    setCandidates.TryAdd(currSet.OrderBy(x=>x).Aggregate((x, y) => 31 * x + y), (currSet, loss + (ulong)currSet.Count * OutputFee));
                 }
 
                 if ((DateTimeOffset.UtcNow - before).TotalMilliseconds > 30)
@@ -304,23 +315,24 @@ namespace Sake
 
             var denomHashSet = denoms.ToHashSet();
 
-            var finalCandidates = setCandidates.Select(x => x.Value).ToList();
+            var finalCandidates = setCandidates.Select(x =>  (x.Value) ).ToList();
             finalCandidates.Shuffle();
             var orderedCandidates = finalCandidates
-                .OrderBy(x => x.Count())
-                .ThenBy(x => x.All(x => denomHashSet.Contains(x)) ? 0 : 1)
+                .OrderBy(x => x.Cost)
+                .ThenBy(x => x.Decomp.All(x => denomHashSet.Contains(x)) ? 0 : 1)
                 .Select(x => x).ToList();
-            var rand = new Random();
+            
             foreach (var candidate in orderedCandidates)
             {
-                var count = candidate.Count();
-                if (rand.Next(0, 10) < 3)
+                var r = random.Next(0, 10);
+                if (r < 5)
                 {
-                    return candidate;
+                    //Console.WriteLine(candidate.Cost - (ulong)candidate.Decomp.Count() * OutputFee);
+                    return candidate.Decomp;
                 }
             }
 
-            return orderedCandidates.First();
+            return orderedCandidates.First().Decomp;
         }
     }
 }
