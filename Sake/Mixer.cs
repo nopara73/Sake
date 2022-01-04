@@ -303,24 +303,25 @@ namespace Sake
 
             var denomHashSet = denoms.ToHashSet();
 
-            var finalCandidates = setCandidates.Select(x => (x.Value)).ToList();
+            var finalCandidates = setCandidates.Select(x => x.Value).ToList();
             finalCandidates.Shuffle();
+
             var orderedCandidates = finalCandidates
-                .OrderBy(x => x.Cost)
-                .ThenBy(x => x.Decomp.All(x => denomHashSet.Contains(x)) ? 0 : 1)
+                .OrderBy(x => x.Cost) // Less cost is better.
+                .ThenBy(x => x.Decomp.All(x => denomHashSet.Contains(x)) ? 0 : 1) // Prefer no change.
                 .Select(x => x).ToList();
 
+            var finalCandidate = orderedCandidates.First().Decomp;
             foreach (var candidate in orderedCandidates)
             {
-                var r = random.Next(0, 10);
-                if (r < 5)
+                if (random.NextDouble() < 0.5)
                 {
-                    //Console.WriteLine(candidate.Cost - (ulong)candidate.Decomp.Count() * OutputFee);
-                    return candidate.Decomp.Select(x => x - OutputFee);
+                    finalCandidate = candidate.Decomp;
+                    break;
                 }
             }
 
-            return orderedCandidates.First().Decomp.Select(x => x - OutputFee);
+            return finalCandidate.Select(x => x - OutputFee);
         }
 
         private void SetDenominationFrequencies(IEnumerable<ulong> inputs)
