@@ -8,25 +8,43 @@ namespace Sake
 {
     internal class Mixer : IMixer
     {
-        public Mixer(uint feeRate = 10, uint inputSize = 69, uint outputSize = 33, uint sanityFeeRate = 2, ulong sanityFee = 5000)
+        /// <param name="feeRate">Bitcoin network fee rate the coinjoin is targeting.</param>
+        /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
+        /// <param name="inputSize">Size of an input.</param>
+        /// <param name="outputSize">Size of an output.</param>
+        public Mixer(uint feeRate = 10, ulong minAllowedOutputAmount = 5000, uint inputSize = 69, uint outputSize = 33)
         {
             FeeRate = feeRate;
             InputSize = inputSize;
             OutputSize = outputSize;
-            var smallestDust = new[] { sanityFee, feeRate * inputSize, sanityFeeRate * inputSize }.Max();
-            Denominations = CreateDenominations(smallestDust);
-            DustThreshold = Denominations.Last();
+
+            MinAllowedOutputAmountPlusFee = minAllowedOutputAmount + OutputFee;
+            DenominationsPlusFees = CreateDenominationsPlusFees();
         }
 
-        private static IOrderedEnumerable<ulong> CreateDenominations(ulong smallestInclusive)
+        public ulong InputFee => InputSize * FeeRate;
+        public ulong OutputFee => OutputSize * FeeRate;
+
+        public ulong MinAllowedOutputAmountPlusFee { get; }
+
+        public uint FeeRate { get; }
+        public uint InputSize { get; }
+        public uint OutputSize { get; }
+        public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
+        public Dictionary<ulong, uint> DenominationProbabilities { get; } = new Dictionary<ulong, uint>();
+
+        private IOrderedEnumerable<ulong> CreateDenominationsPlusFees()
         {
             ulong maxSatoshis = 2099999997690000;
+            ulong minSatoshis = MinAllowedOutputAmountPlusFee;
             var denominations = new HashSet<ulong>();
+
+            // Powers of 2
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(2, i);
+                var denom = (ulong)Math.Pow(2, i) + OutputFee;
 
-                if (denom < smallestInclusive)
+                if (denom < minSatoshis)
                 {
                     continue;
                 }
@@ -39,11 +57,12 @@ namespace Sake
                 denominations.Add(denom);
             }
 
+            // Powers of 3
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(3, i);
+                var denom = (ulong)Math.Pow(3, i) + OutputFee;
 
-                if (denom < smallestInclusive)
+                if (denom < minSatoshis)
                 {
                     continue;
                 }
@@ -56,11 +75,12 @@ namespace Sake
                 denominations.Add(denom);
             }
 
+            // Powers of 3 * 2
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(3, i) * 2;
+                var denom = (ulong)Math.Pow(3, i) * 2 + OutputFee;
 
-                if (denom < smallestInclusive)
+                if (denom < minSatoshis)
                 {
                     continue;
                 }
@@ -73,11 +93,12 @@ namespace Sake
                 denominations.Add(denom);
             }
 
+            // Powers of 10 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i);
+                var denom = (ulong)Math.Pow(10, i) + OutputFee;
 
-                if (denom < smallestInclusive)
+                if (denom < minSatoshis)
                 {
                     continue;
                 }
@@ -90,11 +111,12 @@ namespace Sake
                 denominations.Add(denom);
             }
 
+            // Powers of 10 * 2 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) * 2;
+                var denom = (ulong)Math.Pow(10, i) * 2 + OutputFee;
 
-                if (denom < smallestInclusive)
+                if (denom < minSatoshis)
                 {
                     continue;
                 }
@@ -107,11 +129,12 @@ namespace Sake
                 denominations.Add(denom);
             }
 
+            // Powers of 10 * 5 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) * 5;
+                var denom = (ulong)Math.Pow(10, i) * 5 + OutputFee;
 
-                if (denom < smallestInclusive)
+                if (denom < minSatoshis)
                 {
                     continue;
                 }
@@ -126,16 +149,6 @@ namespace Sake
 
             return denominations.OrderByDescending(x => x);
         }
-
-        public ulong DustThreshold { get; }
-        public ulong InputFee => InputSize * FeeRate;
-        public ulong OutputFee => OutputSize * FeeRate;
-
-        public uint FeeRate { get; }
-        public uint InputSize { get; }
-        public uint OutputSize { get; }
-        public IOrderedEnumerable<ulong> Denominations { get; }
-        public Dictionary<ulong, uint> DenominationProbabilities { get; } = new Dictionary<ulong, uint>();
 
         public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
         {
@@ -177,17 +190,16 @@ namespace Sake
         {
             var inputMinusFee = input - InputFee;
             var secondLargestInputMinusFee = secondLargestInput - InputFee;
-            ulong dustThresholdPlusFee = DustThreshold + OutputFee;
 
             var remaining = inputMinusFee;
-            foreach (var denomPlusFee in Denominations.Select(x => x + OutputFee))
+            foreach (var denomPlusFee in DenominationsPlusFees)
             {
                 if (denomPlusFee > secondLargestInputMinusFee)
                 {
                     continue;
                 }
 
-                if (denomPlusFee < dustThresholdPlusFee || remaining < dustThresholdPlusFee)
+                if (denomPlusFee < MinAllowedOutputAmountPlusFee || remaining < MinAllowedOutputAmountPlusFee)
                 {
                     break;
                 }
@@ -199,7 +211,7 @@ namespace Sake
                 }
             }
 
-            if (remaining >= dustThresholdPlusFee)
+            if (remaining >= MinAllowedOutputAmountPlusFee)
             {
                 yield return remaining;
             }
@@ -207,13 +219,11 @@ namespace Sake
 
         public IEnumerable<ulong> Mix(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
         {
-            var setCandidates = new Dictionary<ulong, (IEnumerable<ulong> Decomp,ulong Cost)>();
-            var random=new Random();
+            var setCandidates = new Dictionary<ulong, (IEnumerable<ulong> Decomp, ulong Cost)>();
+            var random = new Random();
             var maxDenomUsage = random.Next(2, 8);
 
             var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
-
-            ulong dustThresholdPlusFee = DustThreshold + OutputFee;
 
             var denoms = DenominationProbabilities.OrderByDescending(x => x.Key).Where(x => x.Value > 1).Select(x => x.Key).ToList();
 
@@ -221,7 +231,7 @@ namespace Sake
             var remaining = myInputs.Sum();
             foreach (var denomPlusFee in denoms.Where(x => x <= remaining))
             {
-                if (remaining < dustThresholdPlusFee)
+                if (remaining < MinAllowedOutputAmountPlusFee)
                 {
                     break;
                 }
@@ -246,7 +256,7 @@ namespace Sake
             }
 
             var loss = 0UL;
-            if (remaining >= dustThresholdPlusFee)
+            if (remaining >= MinAllowedOutputAmountPlusFee)
             {
                 naiveSet.Add(remaining);
             }
@@ -261,7 +271,7 @@ namespace Sake
                 naiveSet.Add(remaining);
             }
 
-            setCandidates.Add(naiveSet.OrderBy(x => x).Aggregate((x, y) => 31 * x + y), (naiveSet,loss + (ulong)naiveSet.Count * OutputFee));
+            setCandidates.Add(naiveSet.OrderBy(x => x).Aggregate((x, y) => 31 * x + y), (naiveSet, loss + (ulong)naiveSet.Count * OutputFee));
 
             var before = DateTimeOffset.UtcNow;
             while (true)
@@ -273,7 +283,7 @@ namespace Sake
                     var denomPlusFees = denoms.Where(x => x <= remaining && x >= (remaining / 3)).ToList();
                     var denomPlusFee = denomPlusFees.RandomElement();
 
-                    if (remaining < dustThresholdPlusFee)
+                    if (remaining < MinAllowedOutputAmountPlusFee)
                     {
                         break;
                     }
@@ -290,7 +300,7 @@ namespace Sake
                 if (currSet.Count <= naiveSet.Count || currSet.Count <= 3)
                 {
                     loss = 0;
-                    if (remaining >= dustThresholdPlusFee)
+                    if (remaining >= MinAllowedOutputAmountPlusFee)
                     {
                         currSet.Add(remaining);
                     }
@@ -304,7 +314,7 @@ namespace Sake
                         currSet.Add(remaining);
                     }
 
-                    setCandidates.TryAdd(currSet.OrderBy(x=>x).Aggregate((x, y) => 31 * x + y), (currSet, loss + (ulong)currSet.Count * OutputFee));
+                    setCandidates.TryAdd(currSet.OrderBy(x => x).Aggregate((x, y) => 31 * x + y), (currSet, loss + (ulong)currSet.Count * OutputFee));
                 }
 
                 if ((DateTimeOffset.UtcNow - before).TotalMilliseconds > 30)
@@ -315,13 +325,13 @@ namespace Sake
 
             var denomHashSet = denoms.ToHashSet();
 
-            var finalCandidates = setCandidates.Select(x =>  (x.Value) ).ToList();
+            var finalCandidates = setCandidates.Select(x => (x.Value)).ToList();
             finalCandidates.Shuffle();
             var orderedCandidates = finalCandidates
                 .OrderBy(x => x.Cost)
                 .ThenBy(x => x.Decomp.All(x => denomHashSet.Contains(x)) ? 0 : 1)
                 .Select(x => x).ToList();
-            
+
             foreach (var candidate in orderedCandidates)
             {
                 var r = random.Next(0, 10);
