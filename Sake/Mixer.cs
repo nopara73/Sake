@@ -173,7 +173,7 @@ namespace Sake
                         others.AddRange(inputArray[j]);
                     }
                 }
-                yield return Decompose(currentUser, others).Select(x => x - OutputFee);
+                yield return Decompose(currentUser, others);
             }
         }
 
@@ -302,11 +302,11 @@ namespace Sake
                 if (r < 5)
                 {
                     //Console.WriteLine(candidate.Cost - (ulong)candidate.Decomp.Count() * OutputFee);
-                    return candidate.Decomp;
+                    return candidate.Decomp.Select(x => x - OutputFee);
                 }
             }
 
-            return orderedCandidates.First().Decomp;
+            return orderedCandidates.First().Decomp.Select(x => x - OutputFee);
         }
 
         private void SetDenominationFrequencies(IEnumerable<ulong> inputs)

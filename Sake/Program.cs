@@ -46,7 +46,7 @@ foreach (var (value, count, unique) in inputGroups
         Console.ForegroundColor = ConsoleColor.Yellow;
         displayResult = $"{unique}/{count} unique/total";
     }
-    Console.WriteLine($"There are {displayResult} occurrences of\t{value} BTC input.");
+    Console.WriteLine($"There are {displayResult} occurrences of\t{value / 100000000m} BTC input.");
     Console.ForegroundColor = ConsoleColor.Gray;
 }
 
@@ -66,7 +66,7 @@ foreach (var (value, count, unique) in outputGroups
         Console.ForegroundColor = ConsoleColor.Yellow;
         displayResult = $"{unique}/{count} unique/total";
     }
-    Console.WriteLine($"There are {displayResult} occurrences of\t{value} BTC output.");
+    Console.WriteLine($"There are {displayResult} occurrences of\t{value / 100000000m} BTC output.");
     Console.ForegroundColor = ConsoleColor.Gray;
 }
 
@@ -74,8 +74,8 @@ Console.WriteLine();
 Console.WriteLine($"Number of users:\t{userCount}");
 Console.WriteLine($"Number of inputs:\t{inputCount}");
 Console.WriteLine($"Number of outputs:\t{outputCount}");
-Console.WriteLine($"Total in:\t\t{inputAmount} BTC");
-Console.WriteLine($"Fee paid:\t\t{fee} BTC");
+Console.WriteLine($"Total in:\t\t{inputAmount/100000000m} BTC");
+Console.WriteLine($"Fee paid:\t\t{fee / 100000000m} BTC");
 Console.WriteLine($"Size:\t\t\t{size} vbyte");
 Console.WriteLine($"Fee rate:\t\t{feeRate} sats/vbyte");
 Console.WriteLine($"Average anonset:\t{Analyzer.AverageAnonsetGain(inputGroups, outputGroups):0.##}");
