@@ -251,7 +251,7 @@ namespace Sake
 
             // Create many decompositions for optimization.
             var before = DateTimeOffset.UtcNow;
-            while (true)
+            do
             {
                 var currSet = new List<ulong>();
                 remaining = myInputs.Sum();
@@ -293,12 +293,8 @@ namespace Sake
 
                     setCandidates.TryAdd(currSet.OrderBy(x => x).Aggregate((x, y) => 31 * x + y), (currSet, loss + (ulong)currSet.Count * OutputFee));
                 }
-
-                if ((DateTimeOffset.UtcNow - before).TotalMilliseconds > 30)
-                {
-                    break;
-                }
             }
+            while ((DateTimeOffset.UtcNow - before).TotalMilliseconds <= 30);
 
             var denomHashSet = denoms.ToHashSet();
 
