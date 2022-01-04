@@ -6,17 +6,17 @@ var inputCount = 100;
 var userCount = 30;
 var remixRatio = 0.3;
 
-var preRandomAmounts = Sample.Amounts.RandomElements(inputCount);
+var preRandomAmounts = Sample.Amounts.RandomElements(inputCount).Select(x => x.ToSats());
 var preGroups = preRandomAmounts.RandomGroups(userCount);
 
 var preMixer = new Mixer();
-var preMix = (preMixer as IMixer).CompleteMix(preGroups);
+var preMix = preMixer.CompleteMix(preGroups);
 
 var remixCount = (int)(inputCount * remixRatio);
-var randomAmounts = Sample.Amounts.RandomElements(inputCount - remixCount).Concat(preMix.SelectMany(x => x).RandomElements(remixCount));
+var randomAmounts = Sample.Amounts.RandomElements(inputCount - remixCount).Select(x => x.ToSats()).Concat(preMix.SelectMany(x => x).RandomElements(remixCount));
 var inputGroups = randomAmounts.RandomGroups(userCount).ToArray();
 var mixer = new Mixer();
-var outputGroups = (mixer as IMixer).CompleteMix(inputGroups).Select(x => x.ToArray()).ToArray();
+var outputGroups = mixer.CompleteMix(inputGroups).Select(x => x.ToArray()).ToArray();
 
 if (inputGroups.SelectMany(x => x).Sum() <= outputGroups.SelectMany(x => x).Sum())
 {
@@ -28,7 +28,7 @@ var inputAmount = inputGroups.SelectMany(x => x).Sum();
 var outputAmount = outputGroups.SelectMany(x => x).Sum();
 var fee = inputAmount - outputAmount;
 var size = inputCount * mixer.InputSize + outputCount * mixer.OutputSize;
-var feeRate = (fee / size).ToSats();
+var feeRate = (ulong)(fee / (decimal)size);
 
 Console.WriteLine();
 

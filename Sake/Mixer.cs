@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Sake
 {
-    internal class Mixer : IMixer
+    internal class Mixer
     {
         /// <param name="feeRate">Bitcoin network fee rate the coinjoin is targeting.</param>
         /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
@@ -179,37 +179,41 @@ namespace Sake
 
         public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
         {
+            // Filter out and order denominations those have occured in the frequency table at least twice.
+            var denoms = DenominationFrequencies
+                .Where(x => x.Value > 1)
+                .OrderByDescending(x => x.Key)
+                .Select(x => x.Key)
+                .ToArray();
+
+            var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
+            var myInputSum = myInputs.Sum();
+            var remaining = myInputSum;
+
             var setCandidates = new Dictionary<ulong, (IEnumerable<ulong> Decomp, ulong Cost)>();
             var random = new Random();
             var maxDenomUsage = random.Next(2, 8);
 
-            var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
-
-            var denoms = DenominationFrequencies.OrderByDescending(x => x.Key).Where(x => x.Value > 1).Select(x => x.Key).ToList();
-
-            var naiveSet = new List<ulong>();
-            var remaining = myInputs.Sum();
+            // Create the most naive decomposition for starter.
+            List<ulong> naiveSet = new();
+            bool end = false;
             foreach (var denomPlusFee in denoms.Where(x => x <= remaining))
             {
-                if (remaining < MinAllowedOutputAmountPlusFee)
-                {
-                    break;
-                }
-
                 var denomUsage = 0;
                 while (denomPlusFee <= remaining)
                 {
-                    naiveSet.Add(denomPlusFee);
-                    remaining -= denomPlusFee;
-
-                    denomUsage++;
-                    if (denomUsage >= maxDenomUsage)
+                    if (remaining < MinAllowedOutputAmountPlusFee || denomUsage >= maxDenomUsage)
                     {
+                        end = true;
                         break;
                     }
+
+                    naiveSet.Add(denomPlusFee);
+                    remaining -= denomPlusFee;
+                    denomUsage++;
                 }
 
-                if (denomUsage >= maxDenomUsage)
+                if (end)
                 {
                     break;
                 }
