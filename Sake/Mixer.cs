@@ -8,7 +8,7 @@ namespace Sake
 {
     internal class Mixer : IMixer
     {
-        public Mixer(uint feeRate = 10, uint inputSize = 69, uint outputSize = 33, uint sanityFeeRate = 2, ulong sanityFee = 1000)
+        public Mixer(uint feeRate = 10, uint inputSize = 69, uint outputSize = 33, uint sanityFeeRate = 2, ulong sanityFee = 5000)
         {
             FeeRate = feeRate;
             InputSize = inputSize;
@@ -207,7 +207,9 @@ namespace Sake
 
         public IEnumerable<ulong> Mix(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
         {
-            var setCandidates = new Dictionary<int, IEnumerable<ulong>>();
+            var setCandidates = new Dictionary<ulong, (IEnumerable<ulong> Decomp,ulong Cost)>();
+            var random=new Random();
+            var maxDenomUsage = random.Next(2, 8);
 
             var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
 
@@ -224,19 +226,42 @@ namespace Sake
                     break;
                 }
 
+                var denomUsage = 0;
                 while (denomPlusFee <= remaining)
                 {
                     naiveSet.Add(denomPlusFee);
                     remaining -= denomPlusFee;
+
+                    denomUsage++;
+                    if (denomUsage >= maxDenomUsage)
+                    {
+                        break;
+                    }
+                }
+
+                if (denomUsage >= maxDenomUsage)
+                {
+                    break;
                 }
             }
 
+            var loss = 0UL;
             if (remaining >= dustThresholdPlusFee)
             {
                 naiveSet.Add(remaining);
             }
+            else
+            {
+                loss = remaining;
+            }
 
-            setCandidates.Add(naiveSet.Count, naiveSet);
+            // This can happen when smallest denom is larger than the input sum.
+            if (naiveSet.Count == 0)
+            {
+                naiveSet.Add(remaining);
+            }
+
+            setCandidates.Add(naiveSet.OrderBy(x => x).Aggregate((x, y) => 31 * x + y), (naiveSet,loss + (ulong)naiveSet.Count * OutputFee));
 
             var before = DateTimeOffset.UtcNow;
             while (true)
@@ -247,6 +272,7 @@ namespace Sake
                 {
                     var denomPlusFees = denoms.Where(x => x <= remaining && x >= (remaining / 3)).ToList();
                     var denomPlusFee = denomPlusFees.RandomElement();
+
                     if (remaining < dustThresholdPlusFee)
                     {
                         break;
@@ -263,12 +289,22 @@ namespace Sake
 
                 if (currSet.Count <= naiveSet.Count || currSet.Count <= 3)
                 {
+                    loss = 0;
                     if (remaining >= dustThresholdPlusFee)
                     {
                         currSet.Add(remaining);
                     }
+                    else
+                    {
+                        loss = remaining;
+                    }
 
-                    setCandidates.TryAdd(currSet.Count, currSet);
+                    if (currSet.Count == 0)
+                    {
+                        currSet.Add(remaining);
+                    }
+
+                    setCandidates.TryAdd(currSet.OrderBy(x=>x).Aggregate((x, y) => 31 * x + y), (currSet, loss + (ulong)currSet.Count * OutputFee));
                 }
 
                 if ((DateTimeOffset.UtcNow - before).TotalMilliseconds > 30)
@@ -277,18 +313,26 @@ namespace Sake
                 }
             }
 
-            var rand = new Random();
-            var counts = setCandidates.Select(x => x.Key).Distinct().OrderBy(x => x);
-            var selectedCount = counts.Max();
-            foreach(var count in counts)
+            var denomHashSet = denoms.ToHashSet();
+
+            var finalCandidates = setCandidates.Select(x =>  (x.Value) ).ToList();
+            finalCandidates.Shuffle();
+            var orderedCandidates = finalCandidates
+                .OrderBy(x => x.Cost)
+                .ThenBy(x => x.Decomp.All(x => denomHashSet.Contains(x)) ? 0 : 1)
+                .Select(x => x).ToList();
+            
+            foreach (var candidate in orderedCandidates)
             {
-                if(rand.Next(0, 10) < 3)
+                var r = random.Next(0, 10);
+                if (r < 5)
                 {
-                    selectedCount = count;
-                    break;
+                    //Console.WriteLine(candidate.Cost - (ulong)candidate.Decomp.Count() * OutputFee);
+                    return candidate.Decomp;
                 }
             }
-            return setCandidates.Where(x=>x.Key == selectedCount).RandomElement().Value;
+
+            return orderedCandidates.First().Decomp;
         }
     }
 }
