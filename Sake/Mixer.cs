@@ -283,7 +283,7 @@ namespace Sake
                 }
                 while (currSet.Count <= naiveSet.Count || currSet.Count <= 3);
 
-                // If currSet.Count <= 3 then we still generate sets to add ambiguity. 
+                // If currSet.Count <= 3 then we still generate sets to add ambiguity.
                 if (currSet.Count <= naiveSet.Count || currSet.Count <= 3)
                 {
                     loss = 0;
@@ -333,7 +333,20 @@ namespace Sake
                 }
             }
 
-            return finalCandidate.Select(x => x - OutputFee);
+            Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
+            var (Sum, Count, Decomposition) = Decomposer
+                .Decompose((long)myInputSum, (long)MinAllowedOutputAmountPlusFee)
+                .OrderBy(x => x.Count) // priorize cost instead of money
+                .ThenByDescending(x => x.Sum) // the best among the cheapest
+                .FirstOrDefault();
+
+            var decomposition = Sum > 0
+                ? Decomposer.ToRealValuesArray(
+                    Decomposition,
+                    Count,
+                    Decomposer.StdDenoms).Cast<ulong>()
+                : finalCandidate;
+            return decomposition.Select(x => x - OutputFee).ToArray();
         }
 
         private void SetDenominationFrequencies(IEnumerable<ulong> inputs)
