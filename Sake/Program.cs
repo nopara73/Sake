@@ -82,3 +82,7 @@ Console.WriteLine($"Average anonset:\t{Analyzer.AverageAnonsetGain(inputGroups, 
 Console.WriteLine($"Average input anonset:\t{Analyzer.AverageAnonsetGain(inputGroups):0.##}");
 Console.WriteLine($"Average output anonset:\t{Analyzer.AverageAnonsetGain(outputGroups):0.##}");
 Console.WriteLine($"Blockspace efficiency:\t{Analyzer.BlockspaceEfficiency(inputGroups, outputGroups, size):0.##}");
+Console.WriteLine($"Total leftover:\t\t{mixer.Leftovers.Sum():0}");
+Console.WriteLine($"Average leftover:\t{mixer.Leftovers.Average():0}");
+Console.WriteLine($"Median leftover:\t{mixer.Leftovers.Median():0}");
+Console.WriteLine($"Largest leftover:\t{mixer.Leftovers.Max():0}");

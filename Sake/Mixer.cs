@@ -32,6 +32,7 @@ namespace Sake
         public uint FeeRate { get; }
         public uint InputSize { get; }
         public uint OutputSize { get; }
+        public List<int> Leftovers { get; } = new();
         public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
 
         /// <summary>
@@ -288,12 +289,14 @@ namespace Sake
                 if (random.NextDouble() < 0.5)
                 {
                     finalCandidate = candidate.Decomp;
+                    Leftovers.Add((int)(myInputSum - candidate.Decomp.Sum()));
                     break;
                 }
             }
 
             return finalCandidate.Select(x => x - OutputFee);
         }
+
 
         private void SetDenominationFrequencies(IEnumerable<ulong> inputs)
         {
