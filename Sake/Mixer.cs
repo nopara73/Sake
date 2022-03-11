@@ -257,7 +257,7 @@ namespace Sake
 
             // Create many decompositions for optimization.
             Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)MinAllowedOutputAmountPlusFee, Math.Max(3, naiveSet.Count)))
+            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)loss, Math.Max(3, naiveSet.Count)))
             {
                 var currentSet = Decomposer.ToRealValuesArray(
                     decomp,
