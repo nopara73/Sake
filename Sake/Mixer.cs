@@ -263,14 +263,21 @@ namespace Sake
                 var currentSet = Decomposer.ToRealValuesArray(
                     decomp,
                     count,
-                    Decomposer.StdDenoms).Cast<ulong>().ToArray();
+                    Decomposer.StdDenoms).Cast<ulong>().ToList();
 
                 hash = new();
                 foreach (var item in currentSet.OrderBy(x => x))
                 {
                     hash.Add(item);
                 }
-                setCandidates.TryAdd(hash.ToHashCode(), (currentSet, myInputSum - (ulong)sum + (ulong)count * OutputFee)); // The cost is the remaining + output cost.
+
+                // Add change output if necessary.
+                var diff = (ulong)sum - currentSet.Sum();
+                if (diff > MinAllowedOutputAmountPlusFee)
+                {
+                    currentSet.Add(diff);
+                }
+                setCandidates.TryAdd(hash.ToHashCode(), (currentSet, myInputSum - (ulong)currentSet.Sum() + (ulong)count * OutputFee)); // The cost is the remaining + output cost.
             }
 
             var denomHashSet = denoms.ToHashSet();
@@ -289,15 +296,17 @@ namespace Sake
                 if (random.NextDouble() < 0.5)
                 {
                     finalCandidate = candidate.Decomp;
-                    int leftover = (int)(myInputSum - candidate.Decomp.Sum());
-                    if (leftover > 10000)
-                    {
-                        Console.WriteLine($"END OF THE WORLD. LEFTOVER TOO BIG: {leftover}");
-                    }
-                    Leftovers.Add(leftover);
                     break;
                 }
             }
+
+            // Sanity check
+            var leftover = myInputSum - finalCandidate.Sum();
+            if (leftover > MinAllowedOutputAmountPlusFee)
+            {
+                throw new NotSupportedException($"Leftover too large. Aborting to avoid money loss: {leftover}");
+            }
+            Leftovers.Add((int)leftover);
 
             return finalCandidate.Select(x => x - OutputFee);
         }
