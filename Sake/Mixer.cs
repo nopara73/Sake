@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -258,7 +258,7 @@ namespace Sake
 
             // Create many decompositions for optimization.
             Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)loss, Math.Min(10, Math.Max(5, naiveSet.Count))))
+            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)loss, Math.Min(8, Math.Max(5, naiveSet.Count))))
             {
                 var currentSet = Decomposer.ToRealValuesArray(
                     decomp,
