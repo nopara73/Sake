@@ -258,7 +258,7 @@ namespace Sake
 
             // Create many decompositions for optimization.
             Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)loss, Math.Max(5, naiveSet.Count)))
+            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)loss, Math.Min(10, Math.Max(5, naiveSet.Count))))
             {
                 var currentSet = Decomposer.ToRealValuesArray(
                     decomp,
@@ -289,7 +289,12 @@ namespace Sake
                 if (random.NextDouble() < 0.5)
                 {
                     finalCandidate = candidate.Decomp;
-                    Leftovers.Add((int)(myInputSum - candidate.Decomp.Sum()));
+                    int leftover = (int)(myInputSum - candidate.Decomp.Sum());
+                    if (leftover > 10000)
+                    {
+                        Console.WriteLine($"END OF THE WORLD. LEFTOVER TOO BIG: {leftover}");
+                    }
+                    Leftovers.Add(leftover);
                     break;
                 }
             }
