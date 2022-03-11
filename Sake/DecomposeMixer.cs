@@ -1,4 +1,4 @@
-﻿namespace Sake;
+namespace Sake;
 
 /// <summary>
 /// https://github.com/lontivero/DecompositionsPlayground/blob/master/Notebook.ipynb
@@ -9,9 +9,22 @@ public static class Decomposer
 
 	public static IEnumerable<(long Sum, int Count, ulong Decomposition)> Decompose(long target, long tolerance, int maxCount)
 	{
+		if (maxCount is <= 1 or > 8)
+		{
+			throw new ArgumentOutOfRangeException(nameof(maxCount), "The maximum decomposition lenght cannot be greater than 8 or smaller than 1.");
+		}
+		if (target <= 0)
+		{
+			throw new ArgumentException("Only possitive numbers can be decomposed.", nameof(target));
+		}
+
 		var denoms = StdDenoms.SkipWhile(x => x > target).ToArray();
 
-		return denoms.SelectMany((_, i) => InternalCombinations(target, tolerance: tolerance / 10, maxCount, denoms)).Take(10000).ToList();
+		if (denoms.Length > 255)
+		{
+			throw new ArgumentException("Too many denominations. Maximum number is 256.", nameof(target));
+		}
+		return denoms.SelectMany((_, i) => InternalCombinations(target, tolerance: tolerance, maxCount, denoms)).Take(10000).ToList();
 	}
 
 	private static IEnumerable<(long Sum, int Count, ulong Decomposition)> InternalCombinations(long target, long tolerance, int maxLength, long[] denoms)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -269,13 +269,6 @@ namespace Sake
                 foreach (var item in currentSet.OrderBy(x => x))
                 {
                     hash.Add(item);
-                }
-
-                // Add change output if necessary.
-                var diff = (ulong)sum - currentSet.Sum();
-                if (diff > MinAllowedOutputAmountPlusFee)
-                {
-                    currentSet.Add(diff);
                 }
                 setCandidates.TryAdd(hash.ToHashCode(), (currentSet, myInputSum - (ulong)currentSet.Sum() + (ulong)count * OutputFee)); // The cost is the remaining + output cost.
             }
