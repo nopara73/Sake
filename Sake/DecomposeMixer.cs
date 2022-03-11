@@ -1,5 +1,8 @@
 ﻿namespace Sake;
 
+/// <summary>
+/// https://github.com/lontivero/DecompositionsPlayground/blob/master/Notebook.ipynb
+/// </summary>
 public static class Decomposer
 {
 	public static long[] StdDenoms;
