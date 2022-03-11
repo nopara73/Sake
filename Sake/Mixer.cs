@@ -259,17 +259,17 @@ namespace Sake
             Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
             foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)MinAllowedOutputAmountPlusFee, Math.Max(3, naiveSet.Count)))
             {
-                var set = Decomposer.ToRealValuesArray(
+                var currentSet = Decomposer.ToRealValuesArray(
                     decomp,
                     count,
                     Decomposer.StdDenoms).Cast<ulong>().ToArray();
 
                 hash = new();
-                foreach (var item in naiveSet.OrderBy(x => x))
+                foreach (var item in currentSet.OrderBy(x => x))
                 {
                     hash.Add(item);
                 }
-                setCandidates.TryAdd(hash.ToHashCode(), (set, myInputSum - (ulong)sum + (ulong)count * OutputFee)); // The cost is the remaining + output cost.
+                setCandidates.TryAdd(hash.ToHashCode(), (currentSet, myInputSum - (ulong)sum + (ulong)count * OutputFee)); // The cost is the remaining + output cost.
             }
 
             var denomHashSet = denoms.ToHashSet();
