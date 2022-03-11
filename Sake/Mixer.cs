@@ -256,62 +256,21 @@ namespace Sake
                 (naiveSet, loss + (ulong)naiveSet.Count * OutputFee)); // The cost is the remaining + output cost.
 
             // Create many decompositions for optimization.
-            var before = DateTimeOffset.UtcNow;
-            do
+            Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
+            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)MinAllowedOutputAmountPlusFee, Math.Max(3, naiveSet.Count)))
             {
-                var currSet = new List<ulong>();
-                remaining = myInputs.Sum();
-                do
+                var set = Decomposer.ToRealValuesArray(
+                    decomp,
+                    count,
+                    Decomposer.StdDenoms).Cast<ulong>().ToArray();
+
+                hash = new();
+                foreach (var item in naiveSet.OrderBy(x => x))
                 {
-                    var denomPlusFees = denoms.Where(x => x <= remaining && x >= (remaining / 3)).ToList();
-                    if (!denomPlusFees.Any())
-                    {
-                        break;
-                    }
-
-                    var denomPlusFee = denomPlusFees.RandomElement();
-                    if (remaining < MinAllowedOutputAmountPlusFee)
-                    {
-                        break;
-                    }
-
-                    if (denomPlusFee <= remaining)
-                    {
-                        currSet.Add(denomPlusFee);
-                        remaining -= denomPlusFee;
-                    }
+                    hash.Add(item);
                 }
-                while (currSet.Count <= naiveSet.Count || currSet.Count <= 3);
-
-                // If currSet.Count <= 3 then we still generate sets to add ambiguity. 
-                if (currSet.Count <= naiveSet.Count || currSet.Count <= 3)
-                {
-                    loss = 0;
-                    if (remaining >= MinAllowedOutputAmountPlusFee)
-                    {
-                        currSet.Add(remaining);
-                    }
-                    else
-                    {
-                        loss = remaining;
-                    }
-
-                    // When not even the minimum denom is reached.
-                    if (currSet.Count == 0)
-                    {
-                        currSet.Add(remaining);
-                    }
-
-                    hash = new();
-                    foreach (var item in currSet.OrderBy(x => x))
-                    {
-                        hash.Add(item);
-                    }
-
-                    setCandidates.TryAdd(hash.ToHashCode(), (currSet, loss + (ulong)currSet.Count * OutputFee));
-                }
+                setCandidates.TryAdd(hash.ToHashCode(), (set, myInputSum - (ulong)sum + (ulong)count * OutputFee)); // The cost is the remaining + output cost.
             }
-            while ((DateTimeOffset.UtcNow - before).TotalMilliseconds <= 30);
 
             var denomHashSet = denoms.ToHashSet();
 
