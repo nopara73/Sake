@@ -1,4 +1,4 @@
-namespace Sake;
+﻿namespace Sake;
 
 /// <summary>
 /// https://github.com/lontivero/DecompositionsPlayground/blob/master/Notebook.ipynb
@@ -51,7 +51,7 @@ public static class Decomposer
 					.TakeUntil(x => x.Sum == target));
 		}
 
-		return denoms.SelectMany((_, i) => Combinations(i, 0ul, 0, maxLength - 1)).Take(500).ToList();
+		return denoms.SelectMany((_, i) => Combinations(i, 0ul, 0, maxLength - 1)).Take(5000).ToList();
 	}
 
 	private static int Search(long value, long[] denoms, int offset)
