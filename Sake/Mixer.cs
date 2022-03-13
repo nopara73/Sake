@@ -181,18 +181,27 @@ namespace Sake
         public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
         {
             // Filter out and order denominations those have occured in the frequency table at least twice.
-            // Filter out denominations very close to each other.
-            List<ulong> denoms = new();
-            foreach(var denom in DenominationFrequencies
+            var preFilteredDenoms = DenominationFrequencies
                 .Where(x => x.Value > 1)
                 .OrderByDescending(x => x.Key)
                 .Select(x => x.Key)
-                .ToArray())
+                .ToArray();
+
+            // Filter out denominations very close to each other.
+            // Heavy filtering on the top, little to no filtering on the bottom,
+            // because in smaller denom levels larger users are expected to participate,
+            // but on larger denom levels there's little chance of finding each other.
+            var increment = 0.5 / preFilteredDenoms.Length;
+            List<ulong> denoms = new();
+            var currentLength = preFilteredDenoms.Length;
+            foreach(var denom in preFilteredDenoms)
             {
-                if (!denoms.Any() || denom <= (denoms.Last() / 1.1))
+                var filterSeverity = 1 + currentLength * increment;
+                if (!denoms.Any() || denom <= (denoms.Last() / filterSeverity))
                 {
                     denoms.Add(denom);
                 }
+                currentLength--;
             }
 
             var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
