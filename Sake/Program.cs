@@ -26,6 +26,7 @@ if (inputGroups.SelectMany(x => x).Sum() <= outputGroups.SelectMany(x => x).Sum(
 var outputCount = outputGroups.Sum(x => x.Length);
 var inputAmount = inputGroups.SelectMany(x => x).Sum();
 var outputAmount = outputGroups.SelectMany(x => x).Sum();
+var changeCount = outputGroups.SelectMany(x => x).GetIndistinguishable(includeSingle: true).Count(x => x.count == 1);
 var fee = inputAmount - outputAmount;
 var size = inputCount * mixer.InputSize + outputCount * mixer.OutputSize;
 var feeRate = (ulong)(fee / (decimal)size);
@@ -74,7 +75,8 @@ Console.WriteLine();
 Console.WriteLine($"Number of users:\t{userCount}");
 Console.WriteLine($"Number of inputs:\t{inputCount}");
 Console.WriteLine($"Number of outputs:\t{outputCount}");
-Console.WriteLine($"Total in:\t\t{inputAmount/100000000m} BTC");
+Console.WriteLine($"Number of changes:\t{changeCount:0}");
+Console.WriteLine($"Total in:\t\t{inputAmount / 100000000m} BTC");
 Console.WriteLine($"Fee paid:\t\t{fee / 100000000m} BTC");
 Console.WriteLine($"Size:\t\t\t{size} vbyte");
 Console.WriteLine($"Fee rate:\t\t{feeRate} sats/vbyte");
@@ -82,3 +84,6 @@ Console.WriteLine($"Average anonset:\t{Analyzer.AverageAnonsetGain(inputGroups, 
 Console.WriteLine($"Average input anonset:\t{Analyzer.AverageAnonsetGain(inputGroups):0.##}");
 Console.WriteLine($"Average output anonset:\t{Analyzer.AverageAnonsetGain(outputGroups):0.##}");
 Console.WriteLine($"Blockspace efficiency:\t{Analyzer.BlockspaceEfficiency(inputGroups, outputGroups, size):0.##}");
+Console.WriteLine($"Total leftover:\t\t{mixer.Leftovers.Sum():0}");
+Console.WriteLine($"Median leftover:\t{mixer.Leftovers.Median():0}");
+Console.WriteLine($"Largest leftover:\t{mixer.Leftovers.Max():0}");

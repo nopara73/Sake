@@ -32,6 +32,7 @@ namespace Sake
         public uint FeeRate { get; }
         public uint InputSize { get; }
         public uint OutputSize { get; }
+        public List<int> Leftovers { get; } = new();
         public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
 
         /// <summary>
@@ -180,11 +181,28 @@ namespace Sake
         public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
         {
             // Filter out and order denominations those have occured in the frequency table at least twice.
-            var denoms = DenominationFrequencies
+            var preFilteredDenoms = DenominationFrequencies
                 .Where(x => x.Value > 1)
                 .OrderByDescending(x => x.Key)
                 .Select(x => x.Key)
                 .ToArray();
+
+            // Filter out denominations very close to each other.
+            // Heavy filtering on the top, little to no filtering on the bottom,
+            // because in smaller denom levels larger users are expected to participate,
+            // but on larger denom levels there's little chance of finding each other.
+            var increment = 0.5 / preFilteredDenoms.Length;
+            List<ulong> denoms = new();
+            var currentLength = preFilteredDenoms.Length;
+            foreach(var denom in preFilteredDenoms)
+            {
+                var filterSeverity = 1 + currentLength * increment;
+                if (!denoms.Any() || denom <= (denoms.Last() / filterSeverity))
+                {
+                    denoms.Add(denom);
+                }
+                currentLength--;
+            }
 
             var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
             var myInputSum = myInputs.Sum();
@@ -256,62 +274,21 @@ namespace Sake
                 (naiveSet, loss + (ulong)naiveSet.Count * OutputFee)); // The cost is the remaining + output cost.
 
             // Create many decompositions for optimization.
-            var before = DateTimeOffset.UtcNow;
-            do
+            Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
+            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)Math.Max(loss, 0.5 * MinAllowedOutputAmountPlusFee) , Math.Min(8, Math.Max(5, naiveSet.Count))))
             {
-                var currSet = new List<ulong>();
-                remaining = myInputs.Sum();
-                do
+                var currentSet = Decomposer.ToRealValuesArray(
+                    decomp,
+                    count,
+                    Decomposer.StdDenoms).Cast<ulong>().ToList();
+
+                hash = new();
+                foreach (var item in currentSet.OrderBy(x => x))
                 {
-                    var denomPlusFees = denoms.Where(x => x <= remaining && x >= (remaining / 3)).ToList();
-                    if (!denomPlusFees.Any())
-                    {
-                        break;
-                    }
-
-                    var denomPlusFee = denomPlusFees.RandomElement();
-                    if (remaining < MinAllowedOutputAmountPlusFee)
-                    {
-                        break;
-                    }
-
-                    if (denomPlusFee <= remaining)
-                    {
-                        currSet.Add(denomPlusFee);
-                        remaining -= denomPlusFee;
-                    }
+                    hash.Add(item);
                 }
-                while (currSet.Count <= naiveSet.Count || currSet.Count <= 3);
-
-                // If currSet.Count <= 3 then we still generate sets to add ambiguity. 
-                if (currSet.Count <= naiveSet.Count || currSet.Count <= 3)
-                {
-                    loss = 0;
-                    if (remaining >= MinAllowedOutputAmountPlusFee)
-                    {
-                        currSet.Add(remaining);
-                    }
-                    else
-                    {
-                        loss = remaining;
-                    }
-
-                    // When not even the minimum denom is reached.
-                    if (currSet.Count == 0)
-                    {
-                        currSet.Add(remaining);
-                    }
-
-                    hash = new();
-                    foreach (var item in currSet.OrderBy(x => x))
-                    {
-                        hash.Add(item);
-                    }
-
-                    setCandidates.TryAdd(hash.ToHashCode(), (currSet, loss + (ulong)currSet.Count * OutputFee));
-                }
+                setCandidates.TryAdd(hash.ToHashCode(), (currentSet, myInputSum - (ulong)currentSet.Sum() + (ulong)count * OutputFee)); // The cost is the remaining + output cost.
             }
-            while ((DateTimeOffset.UtcNow - before).TotalMilliseconds <= 30);
 
             var denomHashSet = denoms.ToHashSet();
 
@@ -333,8 +310,17 @@ namespace Sake
                 }
             }
 
+            // Sanity check
+            var leftover = myInputSum - finalCandidate.Sum();
+            if (leftover > MinAllowedOutputAmountPlusFee)
+            {
+                throw new NotSupportedException($"Leftover too large. Aborting to avoid money loss: {leftover}");
+            }
+            Leftovers.Add((int)leftover);
+
             return finalCandidate.Select(x => x - OutputFee);
         }
+
 
         private void SetDenominationFrequencies(IEnumerable<ulong> inputs)
         {
