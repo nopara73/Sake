@@ -271,7 +271,7 @@ namespace Sake
 
             setCandidates.Add(
                 hash.ToHashCode(), // Create hash to ensure uniqueness.
-                (naiveSet, loss + (ulong)naiveSet.Count * OutputFee)); // The cost is the remaining + output cost.
+                (naiveSet, loss + (ulong)naiveSet.Count * OutputFee + (ulong)naiveSet.Count * InputFee)); // The cost is the remaining + output cost + input cost.
 
             // Create many decompositions for optimization.
             Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
@@ -287,28 +287,27 @@ namespace Sake
                 {
                     hash.Add(item);
                 }
-                setCandidates.TryAdd(hash.ToHashCode(), (currentSet, myInputSum - (ulong)currentSet.Sum() + (ulong)count * OutputFee)); // The cost is the remaining + output cost.
+                setCandidates.TryAdd(hash.ToHashCode(), (currentSet, myInputSum - (ulong)currentSet.Sum() + (ulong)count * OutputFee + (ulong)count * InputFee)); // The cost is the remaining + output cost + input cost.
             }
 
             var denomHashSet = denoms.ToHashSet();
 
-            var finalCandidates = setCandidates.Select(x => x.Value).ToList();
-            finalCandidates.Shuffle();
+            var preCandidates = setCandidates.Select(x => x.Value).ToList();
+            preCandidates.Shuffle();
 
-            var orderedCandidates = finalCandidates
+            var orderedCandidates = preCandidates
                 .OrderBy(x => x.Cost) // Less cost is better.
                 .ThenBy(x => x.Decomp.All(x => denomHashSet.Contains(x)) ? 0 : 1) // Prefer no change.
                 .Select(x => x).ToList();
 
-            var finalCandidate = orderedCandidates.First().Decomp;
-            foreach (var candidate in orderedCandidates)
-            {
-                if (random.NextDouble() < 0.5)
-                {
-                    finalCandidate = candidate.Decomp;
-                    break;
-                }
-            }
+            // We want to introduce randomity between the best selections.
+            var bestCandidateCost = orderedCandidates.First().Cost;
+            var finalCandidates = orderedCandidates.Where(x => x.Cost <= bestCandidateCost * 1.3).ToArray();
+            
+            // We want to make sure our random selection is not between similar decompositions.
+            // Different largest elements result in very different decompositions.
+            var largestAmount = finalCandidates.Select(x => x.Decomp.First()).ToHashSet().RandomElement();
+            var finalCandidate = finalCandidates.Where(x => x.Decomp.First() == largestAmount).RandomElement().Decomp;
 
             // Sanity check
             var leftover = myInputSum - finalCandidate.Sum();
