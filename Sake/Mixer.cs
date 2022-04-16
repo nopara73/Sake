@@ -194,7 +194,7 @@ namespace Sake
             var increment = 0.5 / preFilteredDenoms.Length;
             List<ulong> denoms = new();
             var currentLength = preFilteredDenoms.Length;
-            foreach(var denom in preFilteredDenoms)
+            foreach (var denom in preFilteredDenoms)
             {
                 var filterSeverity = 1 + currentLength * increment;
                 if (!denoms.Any() || denom <= (denoms.Last() / filterSeverity))
@@ -275,7 +275,7 @@ namespace Sake
 
             // Create many decompositions for optimization.
             Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)Math.Max(loss, 0.5 * MinAllowedOutputAmountPlusFee) , maxCount: 8))
+            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)Math.Max(loss, 0.5 * MinAllowedOutputAmountPlusFee), maxCount: 8))
             {
                 var currentSet = Decomposer.ToRealValuesArray(
                     decomp,
@@ -302,8 +302,19 @@ namespace Sake
 
             // We want to introduce randomity between the best selections.
             var bestCandidateCost = orderedCandidates.First().Cost;
-            var finalCandidates = orderedCandidates.Where(x => x.Cost <= bestCandidateCost * 1.3).ToArray();
-            
+            var acceptableCostCandidates = orderedCandidates.Where(x => x.Cost <= bestCandidateCost * 1.3).ToArray();
+
+            // Try to avoid creating too small outputs.
+            var tooSmallThreshold = myInputSum / 100;
+            var finalCandidates = new List<(IEnumerable<ulong> Decomp, ulong Cost)>();
+            foreach (var toSmallRep in acceptableCostCandidates.Select(x => x.Decomp.Count(x=> x < tooSmallThreshold)).ToHashSet().OrderBy(x => x))
+            {
+                if (finalCandidates.Count < 3)
+                {
+                    finalCandidates.AddRange(acceptableCostCandidates.Where(x => x.Decomp.Count(x => x < tooSmallThreshold) == toSmallRep));
+                }
+            }
+
             // We want to make sure our random selection is not between similar decompositions.
             // Different largest elements result in very different decompositions.
             var largestAmount = finalCandidates.Select(x => x.Decomp.First()).ToHashSet().RandomElement();
