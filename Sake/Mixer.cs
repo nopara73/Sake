@@ -302,7 +302,7 @@ namespace Sake
 
             // We want to introduce randomity between the best selections.
             var bestCandidateCost = orderedCandidates.First().Cost;
-            var finalCandidates = orderedCandidates.Where(x => x.Cost <= bestCandidateCost * 1.3).ToArray();
+            var finalCandidates = orderedCandidates.Where(x => x.Cost <= bestCandidateCost * 1.2).ToArray();
             
             // We want to make sure our random selection is not between similar decompositions.
             // Different largest elements result in very different decompositions.
