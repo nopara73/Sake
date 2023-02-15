@@ -33,20 +33,6 @@ namespace System
             return max;
         }
 
-        public static void Shuffle<T>(this IList<T> list)
-        {
-            var rng = new Random();
-            int n = list.Count;
-            while (n > 1)
-            {
-                n--;
-                int k = rng.Next(n + 1);
-                T value = list[k];
-                list[k] = list[n];
-                list[n] = value;
-            }
-        }
-
         public static IEnumerable<IEnumerable<T>> CombinationsWithoutRepetition<T>(this IEnumerable<T> items, int len)
         {
             return (len == 1) ?
@@ -68,12 +54,6 @@ namespace System
 
         private static Random Random { get; } = new Random();
 
-        public static T RandomElement<T>(this IEnumerable<T> source)
-        {
-            var count = source.Count();
-            var randomIndex = Random.Next(0, count);
-            return source.Skip(randomIndex).FirstOrDefault();
-        }
 
         public static IEnumerable<IEnumerable<T>> RandomGroups<T>(this IEnumerable<T> source, int? groupCount = null)
         {

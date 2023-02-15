@@ -1,6 +1,8 @@
-﻿using Sake;
+﻿using NBitcoin;
+using Sake;
 using System;
 using System.Linq;
+using WalletWasabi.Extensions;
 
 var inputCount = 100;
 var userCount = 30;
@@ -9,14 +11,19 @@ var remixRatio = 0.3;
 var preRandomAmounts = Sample.Amounts.RandomElements(inputCount).Select(x => x.ToSats());
 var preGroups = preRandomAmounts.RandomGroups(userCount);
 
-var preMixer = new Mixer();
-var preMix = preMixer.CompleteMix(preGroups);
+var min = Money.Satoshis(5000m);
+var max = Money.Coins(43000m);
+var feeRate = new FeeRate(1m);
+var availableVSize = 255;
+var random = new Random();
+var preMixer = new Mixer(feeRate,min, max, availableVSize,true, random);
+var preMix = preMixer.CompleteMix(preGroups).Select(c => c.Select(m => (ulong)m.Amount.Satoshi));
 
 var remixCount = (int)(inputCount * remixRatio);
 var randomAmounts = Sample.Amounts.RandomElements(inputCount - remixCount).Select(x => x.ToSats()).Concat(preMix.SelectMany(x => x).RandomElements(remixCount));
 var inputGroups = randomAmounts.RandomGroups(userCount).ToArray();
-var mixer = new Mixer();
-var outputGroups = mixer.CompleteMix(inputGroups).Select(x => x.ToArray()).ToArray();
+var mixer = new Mixer(feeRate, min, max, availableVSize, true, random);
+var outputGroups = mixer.CompleteMix(inputGroups).Select(x => x.Select(m => (ulong)m.Amount.Satoshi).ToArray()).ToArray();
 
 if (inputGroups.SelectMany(x => x).Sum() <= outputGroups.SelectMany(x => x).Sum())
 {
@@ -28,8 +35,7 @@ var inputAmount = inputGroups.SelectMany(x => x).Sum();
 var outputAmount = outputGroups.SelectMany(x => x).Sum();
 var changeCount = outputGroups.SelectMany(x => x).GetIndistinguishable(includeSingle: true).Count(x => x.count == 1);
 var fee = inputAmount - outputAmount;
-var size = inputCount * mixer.InputSize + outputCount * mixer.OutputSize;
-var feeRate = (ulong)(fee / (decimal)size);
+var size = inputCount * NBitcoinExtensions.P2wpkhInputVirtualSize + outputCount * NBitcoinExtensions.P2trOutputVirtualSize;
 
 Console.WriteLine();
 
