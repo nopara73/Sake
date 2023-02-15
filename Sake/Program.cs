@@ -93,3 +93,4 @@ Console.WriteLine($"Blockspace efficiency:\t{Analyzer.BlockspaceEfficiency(input
 Console.WriteLine($"Total leftover:\t\t{mixer.Leftovers.Sum():0}");
 Console.WriteLine($"Median leftover:\t{mixer.Leftovers.Median():0}");
 Console.WriteLine($"Largest leftover:\t{mixer.Leftovers.Max():0}");
+Console.WriteLine($"Taproot/bech32 ratio:\t{mixer.Outputs.Where(o => o.ScriptType == ScriptType.Taproot).Count()}/{mixer.Outputs.Where(o => o.ScriptType == ScriptType.P2WPKH).Count()}");

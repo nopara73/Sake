@@ -45,6 +45,7 @@ namespace Sake
         public Money ChangeFee => FeeRate.GetFee(ChangeScriptType.EstimateOutputVsize());
         private Random Random { get; }
         public List<int> Leftovers { get; } = new();
+        public List<Output> Outputs { get; } = new();
 
         private ScriptType GetNextScriptType()
         {
@@ -386,6 +387,8 @@ namespace Sake
                 throw new NotSupportedException($"Leftover too large. Aborting to avoid money loss: {leftover}");
             }
             Leftovers.Add((int)leftover);
+
+            Outputs.AddRange(finalCandidate);
 
             return finalCandidate;
         }
