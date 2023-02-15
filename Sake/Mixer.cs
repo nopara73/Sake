@@ -182,7 +182,7 @@ namespace Sake
             return denominations.Distinct().OrderByDescending(x => x.EffectiveAmount);
         }
 
-        public IEnumerable<IEnumerable<Output>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
+        public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
         {
             var inputArray = inputs.ToArray();
             for (int i = 0; i < inputArray.Length; i++)
@@ -196,7 +196,7 @@ namespace Sake
                         others.AddRange(inputArray[j].Select(v => Money.Satoshis(v)));
                     }
                 }
-                yield return Decompose(currentUser, others);
+                yield return Decompose(currentUser, others).Select(d => (ulong)d.Amount.Satoshi);
             }
         }
 
@@ -380,7 +380,7 @@ namespace Sake
                 throw new InvalidOperationException("The decomposer created more outputs than it can. Aborting.");
             }
 
-            var leftover = myInputSum - finalCandidate.Sum(c => c.Amount.Satoshi);
+            var leftover = myInputSum - totalOutputAmount;
             if (leftover > MinAllowedOutputAmount + FeeRate.GetFee(NBitcoinExtensions.P2trOutputVirtualSize))
             {
                 throw new NotSupportedException($"Leftover too large. Aborting to avoid money loss: {leftover}");
