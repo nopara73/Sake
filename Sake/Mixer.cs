@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NBitcoin;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,30 +9,25 @@ namespace Sake
 {
     internal class Mixer
     {
-        /// <param name="feeRate">Bitcoin network fee rate the coinjoin is targeting.</param>
-        /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
-        /// <param name="inputSize">Size of an input.</param>
-        /// <param name="outputSize">Size of an output.</param>
-        public Mixer(uint feeRate = 10, ulong minAllowedOutputAmount = 5000, uint inputSize = 69, uint outputSize = 33)
+
+
+        public Mixer(FeeRate feeRate, Money minAllowedOutputAmount, Money maxAllowedOutputAmount, int availableVsize, bool isTaprootAllowed, Random? random = null)
         {
             FeeRate = feeRate;
-            InputSize = inputSize;
-            OutputSize = outputSize;
-
             MinAllowedOutputAmountPlusFee = minAllowedOutputAmount + OutputFee;
 
             // Create many standard denominations.
             DenominationsPlusFees = CreateDenominationsPlusFees();
         }
 
-        public ulong InputFee => InputSize * FeeRate;
-        public ulong OutputFee => OutputSize * FeeRate;
+        public ulong InputFee => FeeRate.GetFee(69);
+        public ulong OutputFee => FeeRate.GetFee(33);
 
         public ulong MinAllowedOutputAmountPlusFee { get; }
 
-        public uint FeeRate { get; }
-        public uint InputSize { get; }
-        public uint OutputSize { get; }
+        public FeeRate FeeRate { get; }
+        public uint InputSize { get; } = 69;
+        public uint OutputSize { get; } = 33;
         public List<int> Leftovers { get; } = new();
         public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
 
