@@ -1,8 +1,10 @@
-﻿using System;
+﻿using NBitcoin;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using WalletWasabi.WabiSabi.Client;
 
 namespace Sake
 {
@@ -24,6 +26,7 @@ namespace Sake
             DenominationsPlusFees = CreateDenominationsPlusFees();
         }
 
+        public int AvailableVsize { get; } = 255;
         public ulong InputFee => InputSize * FeeRate;
         public ulong OutputFee => OutputSize * FeeRate;
 
@@ -273,21 +276,29 @@ namespace Sake
                 hash.ToHashCode(), // Create hash to ensure uniqueness.
                 (naiveSet, loss + (ulong)naiveSet.Count * OutputFee + (ulong)naiveSet.Count * InputFee)); // The cost is the remaining + output cost + input cost.
 
+
             // Create many decompositions for optimization.
-            Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)Math.Max(loss, 0.5 * MinAllowedOutputAmountPlusFee) , maxCount: 8))
+            var stdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
+            var maxNumberOfOutputsAllowed = (int)Math.Min(AvailableVsize / InputSize, 8); // The absolute max possible with the smallest script type.
+            var tolerance = (long)Math.Max(loss, 0.5 * MinAllowedOutputAmountPlusFee); // Taking the changefee here, might be incorrect however it is just a tolerance.
+
+            foreach (var (sum, count, decomp) in Decomposer.Decompose(
+                target: (long)myInputSum,
+                tolerance: tolerance,
+                maxCount: Math.Min(maxNumberOfOutputsAllowed, 8),
+                stdDenoms: stdDenoms))
             {
                 var currentSet = Decomposer.ToRealValuesArray(
-                    decomp,
-                    count,
-                    Decomposer.StdDenoms).Cast<ulong>().ToList();
+                                        decomp,
+                                        count,
+                                        stdDenoms).Select(Money.Satoshis).ToList();
 
                 hash = new();
                 foreach (var item in currentSet.OrderBy(x => x))
                 {
                     hash.Add(item);
                 }
-                setCandidates.TryAdd(hash.ToHashCode(), (currentSet, myInputSum - (ulong)currentSet.Sum() + (ulong)count * OutputFee + (ulong)count * InputFee)); // The cost is the remaining + output cost + input cost.
+                setCandidates.TryAdd(hash.ToHashCode(), (currentSet.Select(m => (ulong)m.Satoshi), myInputSum - (ulong)currentSet.Sum() + (ulong)count * OutputFee + (ulong)count * InputFee)); // The cost is the remaining + output cost + input cost.
             }
 
             var denomHashSet = denoms.ToHashSet();
