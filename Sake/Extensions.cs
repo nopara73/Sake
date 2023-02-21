@@ -66,12 +66,10 @@ namespace System
             return items.CombinationsWithoutRepetition(1, items.Count());
         }
 
-        private static Random Random { get; } = new Random();
-
-        public static T RandomElement<T>(this IEnumerable<T> source)
+        public static T RandomElement<T>(this IEnumerable<T> source, Random random)
         {
             var count = source.Count();
-            var randomIndex = Random.Next(0, count);
+            var randomIndex = random.Next(0, count);
             return source.Skip(randomIndex).FirstOrDefault();
         }
 
