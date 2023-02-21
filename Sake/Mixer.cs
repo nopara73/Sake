@@ -1,16 +1,9 @@
 ﻿using NBitcoin;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Sake
 {
     internal class Mixer
     {
-
-
         public Mixer(FeeRate feeRate, Money minAllowedOutputAmount, Money maxAllowedOutputAmount, int availableVsize, bool isTaprootAllowed, Random? random = null)
         {
             FeeRate = feeRate;
