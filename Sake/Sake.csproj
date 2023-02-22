@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="NBitcoin" Version="7.0.24" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="Sample.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
