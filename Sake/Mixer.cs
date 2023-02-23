@@ -1,27 +1,29 @@
 ﻿using NBitcoin;
+using NBitcoin.Policy;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using WalletWasabi.WabiSabi;
 using WalletWasabi.WabiSabi.Client;
+using WalletWasabi.WabiSabi.Models.MultipartyTransaction;
 using static System.Net.WebRequestMethods;
 
 namespace Sake
 {
     internal class Mixer
     {
-        /// <param name="feeRate">Maximum usable Vsize that client can get per alice.</param>
+
         /// <param name="feeRate">Bitcoin network fee rate the coinjoin is targeting.</param>
         /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
         /// <param name="inputSize">Size of an input.</param>
         /// <param name="outputSize">Size of an output.</param>
-        public Mixer(int maxVsizeCredentialValue, uint feeRate = 10, ulong minAllowedOutputAmount = 5000, uint inputSize = 69, uint outputSize = 33)
+        public Mixer(uint feeRate = 10, ulong minAllowedOutputAmount = 5000, uint inputSize = 69, uint outputSize = 33)
         {
             FeeRate = feeRate;
             InputSize = inputSize;
             OutputSize = outputSize;
-            MaxVsizeCredentialValue = maxVsizeCredentialValue;
 
             MinAllowedOutputAmountPlusFee = minAllowedOutputAmount + OutputFee;
 
@@ -29,7 +31,6 @@ namespace Sake
             DenominationsPlusFees = CreateDenominationsPlusFees();
         }
 
-        public int MaxVsizeCredentialValue { get; }
         public ulong InputFee => InputSize * FeeRate;
         public ulong OutputFee => OutputSize * FeeRate;
 
@@ -166,8 +167,19 @@ namespace Sake
         public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
         {
             var inputArray = inputs.ToArray();
+            var allInputs= inputArray.SelectMany(x => x).ToArray();
 
-            SetDenominationFrequencies(inputArray.SelectMany(x => x));
+            SetDenominationFrequencies(allInputs);
+
+            var totalInputCount = allInputs.Length;
+
+            // This calculation is coming from here: https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Backend/Rounds/RoundParameters.cs#L48
+            StandardTransactionPolicy standardTransactionPolicy = new();
+            var maxTransactionSize = standardTransactionPolicy.MaxTransactionSize ?? 100_000;
+            var initialInputVsizeAllocation = maxTransactionSize - MultipartyTransactionParameters.SharedOverhead;
+
+            // If we are not going up with the number of inputs above ~400, vsize per alice will be 255. 
+            var maxVsizeCredentialValue = Math.Min(initialInputVsizeAllocation / totalInputCount, (int)ProtocolConstants.MaxVsizeCredentialValue);
 
             for (int i = 0; i < inputArray.Length; i++)
             {
@@ -180,11 +192,13 @@ namespace Sake
                         others.AddRange(inputArray[j]);
                     }
                 }
-                yield return Decompose(currentUser, others);
+
+                yield return Decompose(currentUser, others, maxVsizeCredentialValue);
             }
         }
 
-        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
+        /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
+        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam, int maxVsizeCredentialValue)
         {
             // Filter out and order denominations those have occured in the frequency table at least twice.
             var preFilteredDenoms = DenominationFrequencies
@@ -194,7 +208,7 @@ namespace Sake
             .ToArray();
 
             // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
-            var availableVsize = (int)myInputsParam.Sum(input => MaxVsizeCredentialValue - InputSize);
+            var availableVsize = (int)myInputsParam.Sum(input => maxVsizeCredentialValue - InputSize);
 
             // Filter out denominations very close to each other.
             // Heavy filtering on the top, little to no filtering on the bottom,
