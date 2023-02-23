@@ -10,12 +10,13 @@ var remixRatio = 0.3;
 var preRandomAmounts = Sample.Amounts.RandomElements(inputCount).Select(x => x.ToSats());
 var preGroups = preRandomAmounts.RandomGroups(userCount);
 
+// This calculation is coming from here: https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Backend/Rounds/RoundParameters.cs#L48
 StandardTransactionPolicy standardTransactionPolicy = new ();
 var maxTransactionSize = standardTransactionPolicy.MaxTransactionSize ?? 100_000;
 var initialInputVsizeAllocation = maxTransactionSize - MultipartyTransactionParameters.SharedOverhead;
 
-// https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Backend/Rounds/RoundParameters.cs#L48
-var maxVsizeCredentialValue = Math.Min(initialInputVsizeAllocation / inputCount, (int)ProtocolConstants.MaxVsizeCredentialValue);
+// If we are not going up with the number of inputs above ~400, vsize per alice will be 255. 
+var maxVsizeCredentialValue = Math.Min(initialInputVsizeAllocation / inputCount, (int)ProtocolConstants.MaxVsizeCredentialValue); 
 
 var preMixer = new Mixer(maxVsizeCredentialValue);
 var preMix = preMixer.CompleteMix(preGroups);

@@ -11,6 +11,7 @@ namespace Sake
 {
     internal class Mixer
     {
+        /// <param name="feeRate">Maximum usable Vsize that client can get per alice.</param>
         /// <param name="feeRate">Bitcoin network fee rate the coinjoin is targeting.</param>
         /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
         /// <param name="inputSize">Size of an input.</param>
@@ -28,9 +29,6 @@ namespace Sake
             DenominationsPlusFees = CreateDenominationsPlusFees();
         }
 
-        /// <summary>
-        /// Maximum Vsize that client can get per alice.
-        /// </summary>
         public int MaxVsizeCredentialValue { get; }
         public ulong InputFee => InputSize * FeeRate;
         public ulong OutputFee => OutputSize * FeeRate;
