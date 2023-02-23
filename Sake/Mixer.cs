@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using WalletWasabi.WabiSabi.Client;
+using static System.Net.WebRequestMethods;
 
 namespace Sake
 {
@@ -26,7 +27,9 @@ namespace Sake
             DenominationsPlusFees = CreateDenominationsPlusFees();
         }
 
-        public int AvailableVsize { get; } = 255;
+        // Maximum Vsize that client can get per alice.
+        // https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/ProtocolConstants.cs#L7
+        public const long MaxVsizeCredentialValue = 255;
         public ulong InputFee => InputSize * FeeRate;
         public ulong OutputFee => OutputSize * FeeRate;
 
@@ -188,7 +191,10 @@ namespace Sake
                 .Where(x => x.Value > 1)
                 .OrderByDescending(x => x.Key)
                 .Select(x => x.Key)
-                .ToArray();
+            .ToArray();
+
+            // Calculated according to this: https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
+            var availableVsize = (int)myInputsParam.Sum(input => MaxVsizeCredentialValue - InputSize);
 
             // Filter out denominations very close to each other.
             // Heavy filtering on the top, little to no filtering on the bottom,
@@ -279,7 +285,7 @@ namespace Sake
 
             // Create many decompositions for optimization.
             var stdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            var maxNumberOfOutputsAllowed = (int)Math.Min(AvailableVsize / InputSize, 8); // The absolute max possible with the smallest script type.
+            var maxNumberOfOutputsAllowed = (int)Math.Min(availableVsize / InputSize, 8); // The absolute max possible with the smallest script type.
             var tolerance = (long)Math.Max(loss, 0.5 * MinAllowedOutputAmountPlusFee); // Taking the changefee here, might be incorrect however it is just a tolerance.
 
             foreach (var (sum, count, decomp) in Decomposer.Decompose(
