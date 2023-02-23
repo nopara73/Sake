@@ -15,11 +15,12 @@ namespace Sake
         /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
         /// <param name="inputSize">Size of an input.</param>
         /// <param name="outputSize">Size of an output.</param>
-        public Mixer(uint feeRate = 10, ulong minAllowedOutputAmount = 5000, uint inputSize = 69, uint outputSize = 33)
+        public Mixer(int maxVsizeCredentialValue, uint feeRate = 10, ulong minAllowedOutputAmount = 5000, uint inputSize = 69, uint outputSize = 33)
         {
             FeeRate = feeRate;
             InputSize = inputSize;
             OutputSize = outputSize;
+            MaxVsizeCredentialValue = maxVsizeCredentialValue;
 
             MinAllowedOutputAmountPlusFee = minAllowedOutputAmount + OutputFee;
 
@@ -27,9 +28,10 @@ namespace Sake
             DenominationsPlusFees = CreateDenominationsPlusFees();
         }
 
-        // Maximum Vsize that client can get per alice.
-        // https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/ProtocolConstants.cs#L7
-        public const long MaxVsizeCredentialValue = 255;
+        /// <summary>
+        /// Maximum Vsize that client can get per alice.
+        /// </summary>
+        public int MaxVsizeCredentialValue { get; }
         public ulong InputFee => InputSize * FeeRate;
         public ulong OutputFee => OutputSize * FeeRate;
 
@@ -193,7 +195,7 @@ namespace Sake
                 .Select(x => x.Key)
             .ToArray();
 
-            // Calculated according to this: https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
+            // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
             var availableVsize = (int)myInputsParam.Sum(input => MaxVsizeCredentialValue - InputSize);
 
             // Filter out denominations very close to each other.

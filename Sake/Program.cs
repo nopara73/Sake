@@ -1,6 +1,7 @@
-﻿using Sake;
-using System;
-using System.Linq;
+﻿using NBitcoin.Policy;
+using Sake;
+using WalletWasabi.WabiSabi;
+using WalletWasabi.WabiSabi.Models.MultipartyTransaction;
 
 var inputCount = 100;
 var userCount = 30;
@@ -9,13 +10,20 @@ var remixRatio = 0.3;
 var preRandomAmounts = Sample.Amounts.RandomElements(inputCount).Select(x => x.ToSats());
 var preGroups = preRandomAmounts.RandomGroups(userCount);
 
-var preMixer = new Mixer();
+StandardTransactionPolicy standardTransactionPolicy = new ();
+var maxTransactionSize = standardTransactionPolicy.MaxTransactionSize ?? 100_000;
+var initialInputVsizeAllocation = maxTransactionSize - MultipartyTransactionParameters.SharedOverhead;
+
+// https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Backend/Rounds/RoundParameters.cs#L48
+var maxVsizeCredentialValue = Math.Min(initialInputVsizeAllocation / inputCount, (int)ProtocolConstants.MaxVsizeCredentialValue);
+
+var preMixer = new Mixer(maxVsizeCredentialValue);
 var preMix = preMixer.CompleteMix(preGroups);
 
 var remixCount = (int)(inputCount * remixRatio);
 var randomAmounts = Sample.Amounts.RandomElements(inputCount - remixCount).Select(x => x.ToSats()).Concat(preMix.SelectMany(x => x).RandomElements(remixCount));
 var inputGroups = randomAmounts.RandomGroups(userCount).ToArray();
-var mixer = new Mixer();
+var mixer = new Mixer(maxVsizeCredentialValue);
 var outputGroups = mixer.CompleteMix(inputGroups).Select(x => x.ToArray()).ToArray();
 
 if (inputGroups.SelectMany(x => x).Sum() <= outputGroups.SelectMany(x => x).Sum())
