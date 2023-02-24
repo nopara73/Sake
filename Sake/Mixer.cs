@@ -19,10 +19,9 @@ namespace Sake
         /// <param name="maxAllowedOutputAmount">Miximum output amount that's allowed to be registered.</param>
         /// <param name="inputSize">Size of an input.</param>
         /// <param name="outputSize">Size of an output.</param>
-        public Mixer(FeeRate feeRate, Money minAllowedOutputAmount, Money maxAllowedOutputAmount, int availableVsize, bool isTaprootAllowed, Random? random = null)
+        public Mixer(FeeRate feeRate, Money minAllowedOutputAmount, Money maxAllowedOutputAmount, bool isTaprootAllowed, Random? random = null)
         {
             FeeRate = feeRate;
-            AvailableVsize = availableVsize;
             IsTaprootAllowed = isTaprootAllowed;
             MinAllowedOutputAmount = minAllowedOutputAmount;
             MaxAllowedOutputAmount = maxAllowedOutputAmount;
@@ -43,7 +42,6 @@ namespace Sake
         private Random Random { get; }
 
         public FeeRate FeeRate { get; }
-        public int AvailableVsize { get; }
         public bool IsTaprootAllowed { get; }
         public uint InputSize { get; } = 69;
         public uint OutputSize { get; } = 33;
