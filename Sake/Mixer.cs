@@ -1,13 +1,20 @@
-﻿using System;
+﻿using NBitcoin;
+using NBitcoin.Policy;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using WalletWasabi.WabiSabi;
+using WalletWasabi.WabiSabi.Client;
+using WalletWasabi.WabiSabi.Models.MultipartyTransaction;
+using static System.Net.WebRequestMethods;
 
 namespace Sake
 {
     internal class Mixer
     {
+
         /// <param name="feeRate">Bitcoin network fee rate the coinjoin is targeting.</param>
         /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
         /// <param name="inputSize">Size of an input.</param>
@@ -160,8 +167,19 @@ namespace Sake
         public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
         {
             var inputArray = inputs.ToArray();
+            var allInputs= inputArray.SelectMany(x => x).ToArray();
 
-            SetDenominationFrequencies(inputArray.SelectMany(x => x));
+            SetDenominationFrequencies(allInputs);
+
+            var totalInputCount = allInputs.Length;
+
+            // This calculation is coming from here: https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Backend/Rounds/RoundParameters.cs#L48
+            StandardTransactionPolicy standardTransactionPolicy = new();
+            var maxTransactionSize = standardTransactionPolicy.MaxTransactionSize ?? 100_000;
+            var initialInputVsizeAllocation = maxTransactionSize - MultipartyTransactionParameters.SharedOverhead;
+
+            // If we are not going up with the number of inputs above ~400, vsize per alice will be 255. 
+            var maxVsizeCredentialValue = Math.Min(initialInputVsizeAllocation / totalInputCount, (int)ProtocolConstants.MaxVsizeCredentialValue);
 
             for (int i = 0; i < inputArray.Length; i++)
             {
@@ -174,18 +192,23 @@ namespace Sake
                         others.AddRange(inputArray[j]);
                     }
                 }
-                yield return Decompose(currentUser, others);
+
+                yield return Decompose(currentUser, others, maxVsizeCredentialValue);
             }
         }
 
-        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam)
+        /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
+        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam, int maxVsizeCredentialValue)
         {
             // Filter out and order denominations those have occured in the frequency table at least twice.
             var preFilteredDenoms = DenominationFrequencies
                 .Where(x => x.Value > 1)
                 .OrderByDescending(x => x.Key)
                 .Select(x => x.Key)
-                .ToArray();
+            .ToArray();
+
+            // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
+            var availableVsize = (int)myInputsParam.Sum(input => maxVsizeCredentialValue - InputSize);
 
             // Filter out denominations very close to each other.
             // Heavy filtering on the top, little to no filtering on the bottom,
@@ -273,21 +296,29 @@ namespace Sake
                 hash.ToHashCode(), // Create hash to ensure uniqueness.
                 (naiveSet, loss + (ulong)naiveSet.Count * OutputFee + (ulong)naiveSet.Count * InputFee)); // The cost is the remaining + output cost + input cost.
 
+
             // Create many decompositions for optimization.
-            Decomposer.StdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            foreach (var (sum, count, decomp) in Decomposer.Decompose((long)myInputSum, (long)Math.Max(loss, 0.5 * MinAllowedOutputAmountPlusFee) , maxCount: 8))
+            var stdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
+            var maxNumberOfOutputsAllowed = (int)Math.Min(availableVsize / InputSize, 8); // The absolute max possible with the smallest script type.
+            var tolerance = (long)Math.Max(loss, 0.5 * MinAllowedOutputAmountPlusFee); // Taking the changefee here, might be incorrect however it is just a tolerance.
+
+            foreach (var (sum, count, decomp) in Decomposer.Decompose(
+                target: (long)myInputSum,
+                tolerance: tolerance,
+                maxCount: Math.Min(maxNumberOfOutputsAllowed, 8),
+                stdDenoms: stdDenoms))
             {
                 var currentSet = Decomposer.ToRealValuesArray(
-                    decomp,
-                    count,
-                    Decomposer.StdDenoms).Cast<ulong>().ToList();
+                                        decomp,
+                                        count,
+                                        stdDenoms).Select(Money.Satoshis).ToList();
 
                 hash = new();
                 foreach (var item in currentSet.OrderBy(x => x))
                 {
                     hash.Add(item);
                 }
-                setCandidates.TryAdd(hash.ToHashCode(), (currentSet, myInputSum - (ulong)currentSet.Sum() + (ulong)count * OutputFee + (ulong)count * InputFee)); // The cost is the remaining + output cost + input cost.
+                setCandidates.TryAdd(hash.ToHashCode(), (currentSet.Select(m => (ulong)m.Satoshi), myInputSum - (ulong)currentSet.Sum() + (ulong)count * OutputFee + (ulong)count * InputFee)); // The cost is the remaining + output cost + input cost.
             }
 
             var denomHashSet = denoms.ToHashSet();

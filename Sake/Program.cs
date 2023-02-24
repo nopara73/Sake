@@ -1,6 +1,5 @@
 ﻿using Sake;
-using System;
-using System.Linq;
+
 
 var inputCount = 250;
 var userCount = 50;
