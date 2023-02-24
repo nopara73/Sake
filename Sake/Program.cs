@@ -2,9 +2,9 @@
 using System;
 using System.Linq;
 
-var inputCount = 100;
-var userCount = 30;
-var remixRatio = 0.3;
+var inputCount = 250;
+var userCount = 50;
+var remixRatio = 0.8;
 
 var preRandomAmounts = Sample.Amounts.RandomElements(inputCount).Select(x => x.ToSats());
 var preGroups = preRandomAmounts.RandomGroups(userCount);
