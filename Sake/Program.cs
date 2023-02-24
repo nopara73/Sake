@@ -12,16 +12,15 @@ var preGroups = preRandomAmounts.RandomGroups(userCount);
 var min = Money.Satoshis(5000m);
 var max = Money.Coins(43000m);
 var feeRate = new FeeRate(10m);
-var availableVSize = 255;
 var random = new Random();
 
-var preMixer = new Mixer(feeRate, min, max, availableVSize, true, random);
+var preMixer = new Mixer(feeRate, min, max, true, random);
 var preMix = preMixer.CompleteMix(preGroups);
 
 var remixCount = (int)(inputCount * remixRatio);
 var randomAmounts = Sample.Amounts.RandomElements(inputCount - remixCount).Select(x => x.ToSats()).Concat(preMix.SelectMany(x => x).RandomElements(remixCount));
 var inputGroups = randomAmounts.RandomGroups(userCount).ToArray();
-var mixer = new Mixer(feeRate, min, max, availableVSize, true, random);
+var mixer = new Mixer(feeRate, min, max, true, random);
 var outputGroups = mixer.CompleteMix(inputGroups).Select(x => x.ToArray()).ToArray();
 
 if (inputGroups.SelectMany(x => x).Sum() <= outputGroups.SelectMany(x => x).Sum())

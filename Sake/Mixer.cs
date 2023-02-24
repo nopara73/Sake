@@ -14,6 +14,7 @@ namespace Sake
 {
     internal class Mixer
     {
+
         /// <param name="feeRate">Bitcoin network fee rate the coinjoin is targeting.</param>
         /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
         /// <param name="maxAllowedOutputAmount">Miximum output amount that's allowed to be registered.</param>
@@ -32,8 +33,8 @@ namespace Sake
             DenominationsPlusFees = CreateDenominationsPlusFees();
         }
 
-        public ulong InputFee => FeeRate.GetFee(69);
-        public ulong OutputFee => FeeRate.GetFee(33);
+        public ulong InputFee => FeeRate.GetFee(InputSize);
+        public ulong OutputFee => FeeRate.GetFee(OutputSize);
 
         public ulong MinAllowedOutputAmountPlusFee => MinAllowedOutputAmount + OutputFee;
 
@@ -43,8 +44,8 @@ namespace Sake
 
         public FeeRate FeeRate { get; }
         public bool IsTaprootAllowed { get; }
-        public uint InputSize { get; } = 69;
-        public uint OutputSize { get; } = 33;
+        public int InputSize { get; } = 69;
+        public int OutputSize { get; } = 33;
         public List<int> Leftovers { get; } = new();
         public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
 
