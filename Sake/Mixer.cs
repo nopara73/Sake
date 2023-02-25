@@ -17,28 +17,35 @@ namespace Sake
 
         /// <param name="feeRate">Bitcoin network fee rate the coinjoin is targeting.</param>
         /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
+        /// <param name="maxAllowedOutputAmount">Miximum output amount that's allowed to be registered.</param>
         /// <param name="inputSize">Size of an input.</param>
         /// <param name="outputSize">Size of an output.</param>
-        public Mixer(uint feeRate = 10, ulong minAllowedOutputAmount = 5000, uint inputSize = 69, uint outputSize = 33)
+        public Mixer(FeeRate feeRate, Money minAllowedOutputAmount, Money maxAllowedOutputAmount, bool isTaprootAllowed, Random? random = null)
         {
             FeeRate = feeRate;
-            InputSize = inputSize;
-            OutputSize = outputSize;
+            IsTaprootAllowed = isTaprootAllowed;
+            MinAllowedOutputAmount = minAllowedOutputAmount;
+            MaxAllowedOutputAmount = maxAllowedOutputAmount;
+            Random = random ?? Random.Shared;
 
-            MinAllowedOutputAmountPlusFee = minAllowedOutputAmount + OutputFee;
 
             // Create many standard denominations.
             DenominationsPlusFees = CreateDenominationsPlusFees();
         }
 
-        public ulong InputFee => InputSize * FeeRate;
-        public ulong OutputFee => OutputSize * FeeRate;
+        public ulong InputFee => FeeRate.GetFee(InputSize);
+        public ulong OutputFee => FeeRate.GetFee(OutputSize);
 
-        public ulong MinAllowedOutputAmountPlusFee { get; }
+        public ulong MinAllowedOutputAmountPlusFee => MinAllowedOutputAmount + OutputFee;
 
-        public uint FeeRate { get; }
-        public uint InputSize { get; }
-        public uint OutputSize { get; }
+        public Money MinAllowedOutputAmount { get; }
+        public Money MaxAllowedOutputAmount { get; }
+        private Random Random { get; }
+
+        public FeeRate FeeRate { get; }
+        public bool IsTaprootAllowed { get; }
+        public int InputSize { get; } = 69;
+        public int OutputSize { get; } = 33;
         public List<int> Leftovers { get; } = new();
         public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
 
@@ -232,10 +239,9 @@ namespace Sake
             var remaining = myInputSum;
 
             var setCandidates = new Dictionary<int, (IEnumerable<ulong> Decomp, ulong Cost)>();
-            var random = new Random();
 
             // How many times can we participate with the same denomination.
-            var maxDenomUsage = random.Next(2, 8);
+            var maxDenomUsage = Random.Next(2, 8);
 
             // Create the most naive decomposition for starter.
             List<ulong> naiveSet = new();
@@ -337,8 +343,8 @@ namespace Sake
             
             // We want to make sure our random selection is not between similar decompositions.
             // Different largest elements result in very different decompositions.
-            var largestAmount = finalCandidates.Select(x => x.Decomp.First()).ToHashSet().RandomElement();
-            var finalCandidate = finalCandidates.Where(x => x.Decomp.First() == largestAmount).RandomElement().Decomp;
+            var largestAmount = finalCandidates.Select(x => x.Decomp.First()).ToHashSet().RandomElement(Random);
+            var finalCandidate = finalCandidates.Where(x => x.Decomp.First() == largestAmount).RandomElement(Random).Decomp;
 
             // Sanity check
             var leftover = myInputSum - finalCandidate.Sum();
