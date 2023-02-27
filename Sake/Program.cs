@@ -1,6 +1,6 @@
 ﻿using NBitcoin;
 using Sake;
-
+using WalletWasabi.Extensions;
 
 var inputCount = 250;
 var userCount = 50;
@@ -33,7 +33,7 @@ var inputAmount = inputGroups.SelectMany(x => x).Sum();
 var outputAmount = outputGroups.SelectMany(x => x).Sum();
 var changeCount = outputGroups.SelectMany(x => x).GetIndistinguishable(includeSingle: true).Count(x => x.count == 1);
 var fee = inputAmount - outputAmount;
-var size = inputCount * mixer.InputSize + outputCount * mixer.OutputSize;
+var size = inputCount * ScriptType.P2WPKH.EstimateInputVsize() + outputCount * ScriptType.P2WPKH.EstimateInputVsize(); // Todo: calculate with taproot as well. 
 var calculatedFeeRate = (ulong)(fee / (decimal)size);
 
 Console.WriteLine();
