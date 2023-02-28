@@ -51,14 +51,14 @@ namespace Sake
 
         private IOrderedEnumerable<ulong> CreateDenominationsPlusFees()
         {
-            ulong maxSatoshis = 2099999997690000;
-            ulong minSatoshis = MinAllowedOutputAmountPlusFee;
+            ulong maxSatoshis = MaxAllowedOutputAmount;
+            ulong minSatoshis = MinAllowedOutputAmount;
             var denominations = new HashSet<ulong>();
 
             // Powers of 2
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(2, i) + OutputFee;
+                var denom = (ulong)Math.Pow(2, i);
 
                 if (denom < minSatoshis)
                 {
@@ -76,7 +76,7 @@ namespace Sake
             // Powers of 3
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(3, i) + OutputFee;
+                var denom = (ulong)Math.Pow(3, i);
 
                 if (denom < minSatoshis)
                 {
@@ -94,7 +94,7 @@ namespace Sake
             // Powers of 3 * 2
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(3, i) * 2 + OutputFee;
+                var denom = (ulong)Math.Pow(3, i) * 2;
 
                 if (denom < minSatoshis)
                 {
@@ -112,7 +112,7 @@ namespace Sake
             // Powers of 10 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) + OutputFee;
+                var denom = (ulong)Math.Pow(10, i) ;
 
                 if (denom < minSatoshis)
                 {
@@ -130,7 +130,7 @@ namespace Sake
             // Powers of 10 * 2 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) * 2 + OutputFee;
+                var denom = (ulong)Math.Pow(10, i) * 2;
 
                 if (denom < minSatoshis)
                 {
@@ -148,7 +148,7 @@ namespace Sake
             // Powers of 10 * 5 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) * 5 + OutputFee;
+                var denom = (ulong)Math.Pow(10, i) * 5;
 
                 if (denom < minSatoshis)
                 {
@@ -163,7 +163,7 @@ namespace Sake
                 denominations.Add(denom);
             }
 
-            return denominations.OrderByDescending(x => x);
+            return denominations.Distinct().Select(x => x + OutputFee).OrderByDescending(x => x);
         }
 
         public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
