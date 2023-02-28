@@ -30,7 +30,7 @@ namespace Sake
 
 
             // Create many standard denominations.
-            DenominationsPlusFees = CreateDenominationsPlusFees();
+            Denominations = CreateDenominations();
         }
 
         public ulong InputFee => FeeRate.GetFee(InputSize);
@@ -47,9 +47,9 @@ namespace Sake
         public int InputSize { get; } = 69;
         public int OutputSize { get; } = 33;
         public List<int> Leftovers { get; } = new();
-        public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
+        public IOrderedEnumerable<ulong> Denominations { get; }
 
-        private IOrderedEnumerable<ulong> CreateDenominationsPlusFees()
+        private IOrderedEnumerable<ulong> CreateDenominations()
         {
             ulong maxSatoshis = MaxAllowedOutputAmount;
             ulong minSatoshis = MinAllowedOutputAmount;
@@ -163,7 +163,7 @@ namespace Sake
                 denominations.Add(denom);
             }
 
-            return denominations.Distinct().Select(x => x + OutputFee).OrderByDescending(x => x);
+            return denominations.OrderByDescending(x => x);
         }
 
         public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
@@ -197,20 +197,22 @@ namespace Sake
             }
         }
 
+        /// <param name="myInputEffectiveValues">One specific client effective input values (minus input fee).</param>
+        /// <param name="othersInputEffectiveValues">All the others effective input values.</param>
         /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
-        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam, int maxVsizeCredentialValue)
+        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputEffectiveValues, IEnumerable<ulong> othersInputEffectiveValues, int maxVsizeCredentialValue)
         {
-            var histogram = GetDenominationFrequencies(myInputsParam.Concat(othersInputsParam));
+            var histogram = GetDenominationFrequencies(myInputEffectiveValues.Concat(othersInputEffectiveValues));
 
             // Filter out and order denominations those have occured in the frequency table at least twice.
             var preFilteredDenoms = histogram
                 .Where(x => x.Value > 1)
                 .OrderByDescending(x => x.Key)
-                .Select(x => x.Key)
+                .Select(x => x.Key + OutputFee) // Adding back the fees.
             .ToArray();
 
             // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
-            var availableVsize = (int)myInputsParam.Sum(input => maxVsizeCredentialValue - InputSize);
+            var availableVsize = (int)myInputEffectiveValues.Sum(input => maxVsizeCredentialValue - InputSize);
 
             // Filter out denominations very close to each other.
             // Heavy filtering on the top, little to no filtering on the bottom,
@@ -229,7 +231,7 @@ namespace Sake
                 currentLength--;
             }
 
-            var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
+            var myInputs = myInputEffectiveValues.Select(x => x - InputFee).ToArray();
             var myInputSum = myInputs.Sum();
             var remaining = myInputSum;
 
@@ -353,13 +355,15 @@ namespace Sake
         }
 
 
-        private Dictionary<ulong, uint> GetDenominationFrequencies(IEnumerable<ulong> inputs)
+        private Dictionary<ulong, uint> GetDenominationFrequencies(IEnumerable<ulong> inputEffectiveValues)
         {
-            var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
-            IEnumerable<ulong> demonsForBreakDown = DenominationsPlusFees.Where(x => x <= secondLargestInput - InputFee);
+            var secondLargestInput = inputEffectiveValues.OrderByDescending(x => x).Skip(1).First();
+
+            // The input has to fee it's own price (input effective value already substracted) and can only afford outputs where it's fee can be paid (effective cost).
+            IEnumerable<ulong> demonsForBreakDown = Denominations.Select(d => d + OutputFee).Where(x => x <= secondLargestInput);
 
             Dictionary<ulong, uint> denomFrequencies = new();
-            foreach (var input in inputs)
+            foreach (var input in inputEffectiveValues)
             {
                 foreach (var denom in BreakDown(input, demonsForBreakDown))
                 {
@@ -380,24 +384,28 @@ namespace Sake
         {
             var remaining = input - InputFee;
 
-            foreach (var denomPlusFee in denominations)
+            List<ulong> decomposition = new();
+            foreach (var denom in denominations)
             {
-                if (denomPlusFee < MinAllowedOutputAmountPlusFee || remaining < MinAllowedOutputAmountPlusFee)
+                // The denomination is too small or change effective cost cannot be paid.
+                if (denom < MinAllowedOutputAmount || remaining < MinAllowedOutputAmount + OutputFee)
                 {
                     break;
                 }
 
-                while (denomPlusFee <= remaining)
+                while (denom + OutputFee <= remaining)
                 {
-                    yield return denomPlusFee;
-                    remaining -= denomPlusFee;
+                    decomposition.Add(denom);
+                    remaining -= denom + OutputFee;
                 }
             }
 
-            if (remaining >= MinAllowedOutputAmountPlusFee)
+            if (remaining >= MinAllowedOutputAmount + OutputFee)
             {
-                yield return remaining;
+                decomposition.Add(remaining);
             }
+
+            return decomposition;
         }
     }
 }
