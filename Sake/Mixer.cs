@@ -49,11 +49,6 @@ namespace Sake
         public List<int> Leftovers { get; } = new();
         public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
 
-        /// <summary>
-        /// Pair of denomination and the number of times we found it in a breakdown.
-        /// </summary>
-        public Dictionary<ulong, uint> DenominationFrequencies { get; } = new Dictionary<ulong, uint>();
-
         private IOrderedEnumerable<ulong> CreateDenominationsPlusFees()
         {
             ulong maxSatoshis = 2099999997690000;
@@ -176,8 +171,6 @@ namespace Sake
             var inputArray = inputs.ToArray();
             var allInputs= inputArray.SelectMany(x => x).ToArray();
 
-            SetDenominationFrequencies(allInputs);
-
             var totalInputCount = allInputs.Length;
 
             // This calculation is coming from here: https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Backend/Rounds/RoundParameters.cs#L48
@@ -207,8 +200,10 @@ namespace Sake
         /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
         public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam, int maxVsizeCredentialValue)
         {
+            var histogram = GetDenominationFrequencies(myInputsParam.Concat(othersInputsParam));
+
             // Filter out and order denominations those have occured in the frequency table at least twice.
-            var preFilteredDenoms = DenominationFrequencies
+            var preFilteredDenoms = histogram
                 .Where(x => x.Value > 1)
                 .OrderByDescending(x => x.Key)
                 .Select(x => x.Key)
@@ -358,21 +353,24 @@ namespace Sake
         }
 
 
-        private void SetDenominationFrequencies(IEnumerable<ulong> inputs)
+        private Dictionary<ulong, uint> GetDenominationFrequencies(IEnumerable<ulong> inputs)
         {
             var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
             IEnumerable<ulong> demonsForBreakDown = DenominationsPlusFees.Where(x => x <= secondLargestInput - InputFee);
 
+            Dictionary<ulong, uint> denomFrequencies = new();
             foreach (var input in inputs)
             {
                 foreach (var denom in BreakDown(input, demonsForBreakDown))
                 {
-                    if (!DenominationFrequencies.TryAdd(denom, 1))
+                    if (!denomFrequencies.TryAdd(denom, 1))
                     {
-                        DenominationFrequencies[denom]++;
+                        denomFrequencies[denom]++;
                     }
                 }
             }
+
+            return denomFrequencies;
         }
 
         /// <summary>
