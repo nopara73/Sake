@@ -47,115 +47,110 @@ namespace Sake
         public int InputSize { get; } = 69;
         public int OutputSize { get; } = 33;
         public List<int> Leftovers { get; } = new();
-        public IOrderedEnumerable<ulong> Denominations { get; }
+        public IOrderedEnumerable<Output> Denominations { get; }
 
-        private IOrderedEnumerable<ulong> CreateDenominations()
+        private IOrderedEnumerable<Output> CreateDenominations()
         {
             ulong maxSatoshis = MaxAllowedOutputAmount;
             ulong minSatoshis = MinAllowedOutputAmount;
-            var denominations = new HashSet<ulong>();
+            var denominations = new HashSet<Output>();
+
+            Output CreateDenom(double sats)
+            {
+                return Output.FromDenomination(Money.Satoshis((ulong)sats), ScriptType.P2WPKH, FeeRate);
+            }
 
             // Powers of 2
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(2, i);
+                var denom = CreateDenom(Math.Pow(2, i));
 
-                if (denom < minSatoshis)
+                if (denom.Amount < MinAllowedOutputAmount)
                 {
                     continue;
                 }
 
-                if (denom > maxSatoshis)
+                if (denom.Amount > MaxAllowedOutputAmount)
                 {
                     break;
                 }
-
                 denominations.Add(denom);
             }
-
             // Powers of 3
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(3, i);
+                var denom = CreateDenom(Math.Pow(3, i));
 
-                if (denom < minSatoshis)
+                if (denom.Amount < MinAllowedOutputAmount)
                 {
                     continue;
                 }
 
-                if (denom > maxSatoshis)
+                if (denom.Amount > MaxAllowedOutputAmount)
                 {
                     break;
                 }
-
                 denominations.Add(denom);
             }
-
             // Powers of 3 * 2
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(3, i) * 2;
+                var denom = CreateDenom(Math.Pow(3, i) * 2);
 
-                if (denom < minSatoshis)
+                if (denom.Amount < MinAllowedOutputAmount)
                 {
                     continue;
                 }
 
-                if (denom > maxSatoshis)
+                if (denom.Amount > MaxAllowedOutputAmount)
                 {
                     break;
                 }
-
                 denominations.Add(denom);
             }
-
             // Powers of 10 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) ;
+                var denom = CreateDenom(Math.Pow(10, i));
 
-                if (denom < minSatoshis)
+                if (denom.Amount < MinAllowedOutputAmount)
                 {
                     continue;
                 }
 
-                if (denom > maxSatoshis)
+                if (denom.Amount > MaxAllowedOutputAmount)
                 {
                     break;
                 }
-
                 denominations.Add(denom);
             }
-
             // Powers of 10 * 2 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) * 2;
+                var denom = CreateDenom(Math.Pow(10, i) * 2);
 
-                if (denom < minSatoshis)
+                if (denom.Amount < MinAllowedOutputAmount)
                 {
                     continue;
                 }
 
-                if (denom > maxSatoshis)
+                if (denom.Amount > MaxAllowedOutputAmount)
                 {
                     break;
                 }
-
                 denominations.Add(denom);
             }
-
             // Powers of 10 * 5 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) * 5;
+                var denom = CreateDenom(Math.Pow(10, i) * 5);
 
-                if (denom < minSatoshis)
+                if (denom.Amount < MinAllowedOutputAmount)
                 {
                     continue;
                 }
 
-                if (denom > maxSatoshis)
+                if (denom.Amount > MaxAllowedOutputAmount)
                 {
                     break;
                 }
@@ -193,22 +188,24 @@ namespace Sake
                     }
                 }
 
-                yield return Decompose(currentUser, others, maxVsizeCredentialValue);
+
+                //Decomposer always takes effective values. See CoinJoinClient.cs in the main repo.
+                yield return Decompose(currentUser.Select(c => Money.Satoshis(c) - InputFee), others.Select(c => Money.Satoshis(c) - InputFee), maxVsizeCredentialValue);
             }
         }
 
         /// <param name="myInputEffectiveValues">One specific client effective input values (minus input fee).</param>
         /// <param name="othersInputEffectiveValues">All the others effective input values.</param>
         /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
-        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputEffectiveValues, IEnumerable<ulong> othersInputEffectiveValues, int maxVsizeCredentialValue)
+        public IEnumerable<ulong> Decompose(IEnumerable<Money> myInputEffectiveValues, IEnumerable<Money> othersInputEffectiveValues, int maxVsizeCredentialValue)
         {
             var histogram = GetDenominationFrequencies(myInputEffectiveValues.Concat(othersInputEffectiveValues));
 
             // Filter out and order denominations those have occured in the frequency table at least twice.
             var preFilteredDenoms = histogram
                 .Where(x => x.Value > 1)
-                .OrderByDescending(x => x.Key)
-                .Select(x => x.Key + OutputFee) // Adding back the fees.
+                .OrderByDescending(x => x.Key.EffectiveCost)
+                .Select(x => (ulong)x.Key.EffectiveCost.Satoshi)
             .ToArray();
 
             // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
@@ -355,14 +352,14 @@ namespace Sake
         }
 
 
-        private Dictionary<ulong, uint> GetDenominationFrequencies(IEnumerable<ulong> inputEffectiveValues)
+        private Dictionary<Output, uint> GetDenominationFrequencies(IEnumerable<Money> inputEffectiveValues)
         {
             var secondLargestInput = inputEffectiveValues.OrderByDescending(x => x).Skip(1).First();
 
             // The input has to fee it's own price (input effective value already substracted) and can only afford outputs where it's fee can be paid (effective cost).
-            IEnumerable<ulong> demonsForBreakDown = Denominations.Select(d => d + OutputFee).Where(x => x <= secondLargestInput);
+            var demonsForBreakDown = Denominations.Where(x => x.EffectiveCost <= secondLargestInput);
 
-            Dictionary<ulong, uint> denomFrequencies = new();
+            Dictionary<Output, uint> denomFrequencies = new();
             foreach (var input in inputEffectiveValues)
             {
                 foreach (var denom in BreakDown(input, demonsForBreakDown))
@@ -380,29 +377,30 @@ namespace Sake
         /// <summary>
         /// Greedily decomposes an amount to the given denominations.
         /// </summary>
-        private IEnumerable<ulong> BreakDown(ulong input, IEnumerable<ulong> denominations)
+        private IEnumerable<Output> BreakDown(Money input, IEnumerable<Output> denominations)
         {
             var remaining = input - InputFee;
 
-            List<ulong> decomposition = new();
+            List<Output> decomposition = new();
             foreach (var denom in denominations)
             {
                 // The denomination is too small or change effective cost cannot be paid.
-                if (denom < MinAllowedOutputAmount || remaining < MinAllowedOutputAmount + OutputFee)
+                if (denom.Amount < MinAllowedOutputAmount || remaining < MinAllowedOutputAmount + OutputFee)
                 {
                     break;
                 }
 
-                while (denom + OutputFee <= remaining)
+                while (denom.EffectiveCost <= remaining)
                 {
                     decomposition.Add(denom);
-                    remaining -= denom + OutputFee;
+                    remaining -= denom.EffectiveCost;
                 }
             }
 
             if (remaining >= MinAllowedOutputAmount + OutputFee)
             {
-                decomposition.Add(remaining);
+                var changeOutput = Output.FromAmount(remaining, ScriptType.P2WPKH, FeeRate);
+                decomposition.Add(changeOutput);
             }
 
             return decomposition;
