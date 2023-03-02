@@ -48,8 +48,6 @@ namespace Sake
         public int OutputSize { get; } = 33;
         public List<int> Leftovers { get; } = new();
         public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
-
-        public IEnumerable<ulong> DenominationFrequencies { get; set; }
         private IOrderedEnumerable<ulong> CreateDenominationsPlusFees()
         {
             ulong maxSatoshis = 2099999997690000;
@@ -172,7 +170,7 @@ namespace Sake
             var inputArray = inputs.ToArray();
             var allInputs= inputArray.SelectMany(x => x).ToArray();
 
-            DenominationFrequencies = GetDenominationFrequencies(allInputs);
+            var filteredDenominations = GetDenominationFrequencies(allInputs);
 
             var totalInputCount = allInputs.Length;
 
@@ -196,17 +194,15 @@ namespace Sake
                     }
                 }
 
-                yield return Decompose(currentUser, others, maxVsizeCredentialValue);
+                yield return Decompose(currentUser, filteredDenominations, maxVsizeCredentialValue);
             }
         }
 
         /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
-        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam, int maxVsizeCredentialValue)
+        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> denoms, int maxVsizeCredentialValue)
         {
             // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
             var availableVsize = (int)myInputsParam.Sum(input => maxVsizeCredentialValue - InputSize);
-
-            var denoms = DenominationFrequencies;
 
             var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
             var myInputSum = myInputs.Sum();
