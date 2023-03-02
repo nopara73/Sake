@@ -170,7 +170,7 @@ namespace Sake
             var inputArray = inputs.ToArray();
             var allInputs= inputArray.SelectMany(x => x).ToArray();
 
-            var filteredDenominations = GetDenominationFrequencies(allInputs);
+            var filteredDenominations = GetFilteredDenominations(allInputs);
 
             var totalInputCount = allInputs.Length;
 
@@ -328,7 +328,7 @@ namespace Sake
         }
 
 
-        private IEnumerable<ulong> GetDenominationFrequencies(IEnumerable<ulong> inputs)
+        private IEnumerable<ulong> GetFilteredDenominations(IEnumerable<ulong> inputs)
         {
             var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
             IEnumerable<ulong> demonsForBreakDown = DenominationsPlusFees.Where(x => x <= secondLargestInput - InputFee);
