@@ -30,7 +30,7 @@ namespace Sake
 
 
             // Create many standard denominations.
-            DenominationsPlusFees = CreateDenominationsPlusFees();
+            Denominations = CreateDenominations();
         }
 
         public ulong InputFee => FeeRate.GetFee(InputSize);
@@ -47,17 +47,17 @@ namespace Sake
         public int InputSize { get; } = 69;
         public int OutputSize { get; } = 33;
         public List<int> Leftovers { get; } = new();
-        public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
-        private IOrderedEnumerable<ulong> CreateDenominationsPlusFees()
+        public IOrderedEnumerable<ulong> Denominations { get; }
+        private IOrderedEnumerable<ulong> CreateDenominations()
         {
-            ulong maxSatoshis = 2099999997690000;
-            ulong minSatoshis = MinAllowedOutputAmountPlusFee;
+            ulong maxSatoshis = MaxAllowedOutputAmount;
+            ulong minSatoshis = MinAllowedOutputAmount;
             var denominations = new HashSet<ulong>();
 
             // Powers of 2
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(2, i) + OutputFee;
+                var denom = (ulong)Math.Pow(2, i);
 
                 if (denom < minSatoshis)
                 {
@@ -75,7 +75,7 @@ namespace Sake
             // Powers of 3
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(3, i) + OutputFee;
+                var denom = (ulong)Math.Pow(3, i);
 
                 if (denom < minSatoshis)
                 {
@@ -93,7 +93,7 @@ namespace Sake
             // Powers of 3 * 2
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(3, i) * 2 + OutputFee;
+                var denom = (ulong)Math.Pow(3, i) * 2;
 
                 if (denom < minSatoshis)
                 {
@@ -111,7 +111,7 @@ namespace Sake
             // Powers of 10 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) + OutputFee;
+                var denom = (ulong)Math.Pow(10, i);
 
                 if (denom < minSatoshis)
                 {
@@ -129,7 +129,7 @@ namespace Sake
             // Powers of 10 * 2 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) * 2 + OutputFee;
+                var denom = (ulong)Math.Pow(10, i) * 2;
 
                 if (denom < minSatoshis)
                 {
@@ -147,7 +147,7 @@ namespace Sake
             // Powers of 10 * 5 (1-2-5 series)
             for (int i = 0; i < int.MaxValue; i++)
             {
-                var denom = (ulong)Math.Pow(10, i) * 5 + OutputFee;
+                var denom = (ulong)Math.Pow(10, i) * 5;
 
                 if (denom < minSatoshis)
                 {
@@ -165,6 +165,11 @@ namespace Sake
             return denominations.OrderByDescending(x => x);
         }
 
+        /// <summary>
+        /// Run a series of mix with different input group combinations. 
+        /// </summary>
+        /// <param name="inputs">Input effective values. The fee substracted, this is how the code works in the original repo.</param>
+        /// <returns></returns>
         public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
         {
             var inputArray = inputs.ToArray();
@@ -194,7 +199,7 @@ namespace Sake
                     }
                 }
 
-                yield return Decompose(currentUser, filteredDenominations, maxVsizeCredentialValue);
+                yield return Decompose(currentUser, filteredDenominations.Select(d => d + OutputFee), maxVsizeCredentialValue);
             }
         }
 
@@ -327,11 +332,10 @@ namespace Sake
             return finalCandidate.Select(x => x - OutputFee);
         }
 
-
         private IEnumerable<ulong> GetFilteredDenominations(IEnumerable<ulong> inputs)
         {
             var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
-            IEnumerable<ulong> demonsForBreakDown = DenominationsPlusFees.Where(x => x <= secondLargestInput - InputFee);
+            IEnumerable<ulong> demonsForBreakDown = Denominations.Where(x => x + OutputFee <= secondLargestInput);
 
             Dictionary<ulong, uint> denoms = new();
             foreach (var input in inputs)
@@ -377,25 +381,25 @@ namespace Sake
         /// </summary>
         private IEnumerable<ulong> BreakDown(ulong input, IEnumerable<ulong> denominations)
         {
-            var remaining = input - InputFee;
+            var remaining = input;
 
-            foreach (var denomPlusFee in denominations)
+            foreach (var denom in denominations)
             {
-                if (denomPlusFee < MinAllowedOutputAmountPlusFee || remaining < MinAllowedOutputAmountPlusFee)
+                if (denom < MinAllowedOutputAmount || remaining < MinAllowedOutputAmountPlusFee)
                 {
                     break;
                 }
 
-                while (denomPlusFee <= remaining)
+                while (denom + OutputFee <= remaining)
                 {
-                    yield return denomPlusFee;
-                    remaining -= denomPlusFee;
+                    yield return denom;
+                    remaining -= denom + OutputFee;
                 }
             }
 
             if (remaining >= MinAllowedOutputAmountPlusFee)
             {
-                yield return remaining;
+                yield return remaining - OutputFee;
             }
         }
     }
