@@ -291,7 +291,7 @@ namespace Sake
 
             setCandidates.Add( 
                 hash.ToHashCode(), // Create hash to ensure uniqueness.
-                (naiveSet.Select(x => (ulong)x.EffectiveCost.Satoshi), loss + (ulong)naiveSet.Count * OutputFee + (ulong)naiveSet.Count * InputFee)); // The cost is the remaining + output cost + input cost.
+                (naiveSet.Select(x => (ulong)x.EffectiveCost.Satoshi), loss + CalculateCostMetrics(naiveSet)));
 
 
             // Create many decompositions for optimization.
@@ -421,6 +421,17 @@ namespace Sake
                 var changeOutput = Output.FromAmount(remaining, ScriptType.P2WPKH, FeeRate);
                 yield return changeOutput;
             }
+        }
+
+        public static Money CalculateCostMetrics(IEnumerable<Output> outputs)
+        {
+            // The cost of the outputs. The more the worst.
+            var outputCost = outputs.Sum(o => o.Fee);
+
+            // The cost of sending further or remix these coins.
+            var inputCost = outputs.Sum(o => o.InputFee);
+
+            return outputCost + inputCost;
         }
     }
 }
