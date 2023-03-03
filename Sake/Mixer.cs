@@ -296,26 +296,46 @@ namespace Sake
 
             // Create many decompositions for optimization.
             var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            var maxNumberOfOutputsAllowed = (int)Math.Min(availableVsize / InputSize, 8); // The absolute max possible with the smallest script type.
+            var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
+            var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 8); // The absolute max possible with the smallest script type.
             var tolerance = (long)Math.Max(loss, 0.5 * MinAllowedOutputAmountPlusFee); // Taking the changefee here, might be incorrect however it is just a tolerance.
 
-            foreach (var (sum, count, decomp) in Decomposer.Decompose(
-                target: (long)myInputSum,
-                tolerance: tolerance,
-                maxCount: Math.Min(maxNumberOfOutputsAllowed, 8),
-                stdDenoms: stdDenoms))
+            if (maxNumberOfOutputsAllowed > 1)
             {
-                var currentSet = Decomposer.ToRealValuesArray(
-                                        decomp,
-                                        count,
-                                        stdDenoms).Select(Money.Satoshis).ToList();
-
-                hash = new();
-                foreach (var item in currentSet.OrderBy(x => x))
+                foreach (var (sum, count, decomp) in Decomposer.Decompose(
+                    target: (long)myInputSum,
+                    tolerance: tolerance,
+                    maxCount: Math.Min(maxNumberOfOutputsAllowed, 8),
+                    stdDenoms: stdDenoms))
                 {
-                    hash.Add(item);
+                    var currentSet = Decomposer.ToRealValuesArray(
+                                            decomp,
+                                            count,
+                                            stdDenoms).Select(Money.Satoshis).ToList();
+
+                    // Translate back to denominations.
+                    List<Output> finalDenoms = new();
+                    foreach (var outputPlusFee in currentSet)
+                    {
+                        finalDenoms.Add(denoms.First(d => d.EffectiveCost == outputPlusFee));
+                    }
+
+                    // The decomposer won't take vsize into account for different script types, checking it back here if too much, disregard the decomposition.
+                    var totalVSize = finalDenoms.Sum(d => d.ScriptType.EstimateOutputVsize());
+                    if (totalVSize > availableVsize)
+                    {
+                        continue;
+                    }
+
+                    hash = new();
+                    foreach (var item in finalDenoms.OrderBy(x => x.Amount))
+                    {
+                        hash.Add(item);
+                    }
+
+                    var deficit = (myInputSum - (ulong)finalDenoms.Sum(d => d.EffectiveCost)) + CalculateCostMetrics(finalDenoms);
+                    setCandidates.TryAdd(hash.ToHashCode(), (finalDenoms.Select(m => (ulong)m.EffectiveCost.Satoshi), deficit));
                 }
-                setCandidates.TryAdd(hash.ToHashCode(), (currentSet.Select(m => (ulong)m.Satoshi), myInputSum - (ulong)currentSet.Sum() + (ulong)count * OutputFee + (ulong)count * InputFee)); // The cost is the remaining + output cost + input cost.
             }
 
             var denomHashSet = denoms.ToHashSet();
