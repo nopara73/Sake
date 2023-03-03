@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using WalletWasabi.Extensions;
 using WalletWasabi.WabiSabi;
 using WalletWasabi.WabiSabi.Client;
 using WalletWasabi.WabiSabi.Models.MultipartyTransaction;
@@ -31,10 +32,14 @@ namespace Sake
 
             // Create many standard denominations.
             Denominations = CreateDenominations();
+            ChangeScriptType = ScriptType.P2WPKH;
         }
 
         public ulong InputFee => FeeRate.GetFee(InputSize);
         public ulong OutputFee => FeeRate.GetFee(OutputSize);
+
+        public ScriptType ChangeScriptType { get; }
+        public Money ChangeFee => FeeRate.GetFee(ChangeScriptType.EstimateOutputVsize());
 
         public ulong MinAllowedOutputAmountPlusFee => MinAllowedOutputAmount + OutputFee;
 
@@ -205,17 +210,18 @@ namespace Sake
                     }
                 }
 
-                yield return Decompose(currentUser, filteredDenominations.Select(d => (ulong)d.EffectiveCost.Satoshi), maxVsizeCredentialValue);
+                yield return Decompose(currentUser.Select(s => Money.Satoshis(s)), filteredDenominations, maxVsizeCredentialValue);
             }
         }
 
+        /// <param name="myInputsParam">Input effective values. The fee substracted, this is how the code works in the original repo.</param>
         /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
-        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> denoms, int maxVsizeCredentialValue)
+        public IEnumerable<ulong> Decompose(IEnumerable<Money> myInputsParam, IEnumerable<Output> denoms, int maxVsizeCredentialValue)
         {
             // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
-            var availableVsize = (int)myInputsParam.Sum(input => maxVsizeCredentialValue - InputSize);
-
-            var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
+            var availableVsize = (int)myInputsParam.Sum(input => maxVsizeCredentialValue - ScriptType.P2WPKH.EstimateInputVsize());
+            var remainingVsize = availableVsize;
+            var myInputs = myInputsParam.ToArray();
             var myInputSum = myInputs.Sum();
             var remaining = myInputSum;
 
@@ -225,21 +231,23 @@ namespace Sake
             var maxDenomUsage = Random.Next(2, 8);
 
             // Create the most naive decomposition for starter.
-            List<ulong> naiveSet = new();
+            List<Output> naiveSet = new();
             bool end = false;
-            foreach (var denomPlusFee in denoms.Where(x => x <= remaining))
+            foreach (var denom in denoms.Where(x => x.EffectiveCost <= remaining))
             {
                 var denomUsage = 0;
-                while (denomPlusFee <= remaining)
+                while (denom.EffectiveCost <= remaining)
                 {
-                    if (remaining < MinAllowedOutputAmountPlusFee)
+                    // We can only let this go forward if at least 2 output can be added (denom + potential change)
+                    if (remaining < MinAllowedOutputAmount + ChangeFee || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
                     {
                         end = true;
                         break;
                     }
 
-                    naiveSet.Add(denomPlusFee);
-                    remaining -= denomPlusFee;
+                    naiveSet.Add(denom);
+                    remaining -= denom.EffectiveCost;
+                    remainingVsize -= denom.ScriptType.EstimateOutputVsize();
                     denomUsage++;
 
                     // If we reached the limit, the rest will be change.
@@ -257,9 +265,10 @@ namespace Sake
             }
 
             var loss = 0UL;
-            if (remaining >= MinAllowedOutputAmountPlusFee)
+            if (remaining >= MinAllowedOutputAmount + ChangeFee)
             {
-                naiveSet.Add(remaining);
+                var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
+                naiveSet.Add(change);
             }
             else
             {
@@ -270,22 +279,23 @@ namespace Sake
             // This can happen when smallest denom is larger than the input sum.
             if (naiveSet.Count == 0)
             {
-                naiveSet.Add(remaining);
+                var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
+                naiveSet.Add(change);
             }
 
             HashCode hash = new();
-            foreach (var item in naiveSet.OrderBy(x => x))
+            foreach (var item in naiveSet.OrderBy(x => x.Amount))
             {
                 hash.Add(item);
             }
 
-            setCandidates.Add(
+            setCandidates.Add( 
                 hash.ToHashCode(), // Create hash to ensure uniqueness.
-                (naiveSet, loss + (ulong)naiveSet.Count * OutputFee + (ulong)naiveSet.Count * InputFee)); // The cost is the remaining + output cost + input cost.
+                (naiveSet.Select(x => (ulong)x.EffectiveCost.Satoshi), loss + (ulong)naiveSet.Count * OutputFee + (ulong)naiveSet.Count * InputFee)); // The cost is the remaining + output cost + input cost.
 
 
             // Create many decompositions for optimization.
-            var stdDenoms = denoms.Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
+            var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
             var maxNumberOfOutputsAllowed = (int)Math.Min(availableVsize / InputSize, 8); // The absolute max possible with the smallest script type.
             var tolerance = (long)Math.Max(loss, 0.5 * MinAllowedOutputAmountPlusFee); // Taking the changefee here, might be incorrect however it is just a tolerance.
 
@@ -315,7 +325,7 @@ namespace Sake
 
             var orderedCandidates = preCandidates
                 .OrderBy(x => x.Cost) // Less cost is better.
-                .ThenBy(x => x.Decomp.All(x => denomHashSet.Contains(x)) ? 0 : 1) // Prefer no change.
+                .ThenBy(x => x.Decomp.All(x => denomHashSet.Select(x => (ulong)x.EffectiveCost.Satoshi).Contains(x)) ? 0 : 1) // Prefer no change.
                 .Select(x => x).ToList();
 
             // We want to introduce randomity between the best selections.
