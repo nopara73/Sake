@@ -48,12 +48,6 @@ namespace Sake
         public int OutputSize { get; } = 33;
         public List<int> Leftovers { get; } = new();
         public IOrderedEnumerable<ulong> DenominationsPlusFees { get; }
-
-        /// <summary>
-        /// Pair of denomination and the number of times we found it in a breakdown.
-        /// </summary>
-        public Dictionary<ulong, uint> DenominationFrequencies { get; } = new Dictionary<ulong, uint>();
-
         private IOrderedEnumerable<ulong> CreateDenominationsPlusFees()
         {
             ulong maxSatoshis = 2099999997690000;
@@ -176,7 +170,7 @@ namespace Sake
             var inputArray = inputs.ToArray();
             var allInputs= inputArray.SelectMany(x => x).ToArray();
 
-            SetDenominationFrequencies(allInputs);
+            var filteredDenominations = GetFilteredDenominations(allInputs);
 
             var totalInputCount = allInputs.Length;
 
@@ -200,39 +194,15 @@ namespace Sake
                     }
                 }
 
-                yield return Decompose(currentUser, others, maxVsizeCredentialValue);
+                yield return Decompose(currentUser, filteredDenominations, maxVsizeCredentialValue);
             }
         }
 
         /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
-        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> othersInputsParam, int maxVsizeCredentialValue)
+        public IEnumerable<ulong> Decompose(IEnumerable<ulong> myInputsParam, IEnumerable<ulong> denoms, int maxVsizeCredentialValue)
         {
-            // Filter out and order denominations those have occured in the frequency table at least twice.
-            var preFilteredDenoms = DenominationFrequencies
-                .Where(x => x.Value > 1)
-                .OrderByDescending(x => x.Key)
-                .Select(x => x.Key)
-            .ToArray();
-
             // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
             var availableVsize = (int)myInputsParam.Sum(input => maxVsizeCredentialValue - InputSize);
-
-            // Filter out denominations very close to each other.
-            // Heavy filtering on the top, little to no filtering on the bottom,
-            // because in smaller denom levels larger users are expected to participate,
-            // but on larger denom levels there's little chance of finding each other.
-            var increment = 0.5 / preFilteredDenoms.Length;
-            List<ulong> denoms = new();
-            var currentLength = preFilteredDenoms.Length;
-            foreach(var denom in preFilteredDenoms)
-            {
-                var filterSeverity = 1 + currentLength * increment;
-                if (!denoms.Any() || denom <= (denoms.Last() / filterSeverity))
-                {
-                    denoms.Add(denom);
-                }
-                currentLength--;
-            }
 
             var myInputs = myInputsParam.Select(x => x - InputFee).ToArray();
             var myInputSum = myInputs.Sum();
@@ -358,21 +328,48 @@ namespace Sake
         }
 
 
-        private void SetDenominationFrequencies(IEnumerable<ulong> inputs)
+        private IEnumerable<ulong> GetFilteredDenominations(IEnumerable<ulong> inputs)
         {
             var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
             IEnumerable<ulong> demonsForBreakDown = DenominationsPlusFees.Where(x => x <= secondLargestInput - InputFee);
 
+            Dictionary<ulong, uint> denoms = new();
             foreach (var input in inputs)
             {
                 foreach (var denom in BreakDown(input, demonsForBreakDown))
                 {
-                    if (!DenominationFrequencies.TryAdd(denom, 1))
+                    if (!denoms.TryAdd(denom, 1))
                     {
-                        DenominationFrequencies[denom]++;
+                        denoms[denom]++;
                     }
                 }
             }
+
+            // Filter out and order denominations those have occured in the frequency table at least twice.
+            var preFilteredDenoms = denoms
+                .Where(x => x.Value > 1)
+                .OrderByDescending(x => x.Key)
+                .Select(x => x.Key)
+            .ToArray();
+
+            // Filter out denominations very close to each other.
+            // Heavy filtering on the top, little to no filtering on the bottom,
+            // because in smaller denom levels larger users are expected to participate,
+            // but on larger denom levels there's little chance of finding each other.
+            var increment = 0.5 / preFilteredDenoms.Length;
+            List<ulong> lessDenoms = new();
+            var currentLength = preFilteredDenoms.Length;
+            foreach (var denom in preFilteredDenoms)
+            {
+                var filterSeverity = 1 + currentLength * increment;
+                if (!lessDenoms.Any() || denom <= (lessDenoms.Last() / filterSeverity))
+                {
+                    lessDenoms.Add(denom);
+                }
+                currentLength--;
+            }
+
+            return lessDenoms;
         }
 
         /// <summary>
