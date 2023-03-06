@@ -33,7 +33,7 @@ var inputAmount = inputGroups.SelectMany(x => x).Sum();
 var outputAmount = outputGroups.SelectMany(x => x).Sum();
 var changeCount = outputGroups.SelectMany(x => x).GetIndistinguishable(includeSingle: true).Count(x => x.count == 1);
 var fee = inputAmount - outputAmount;
-var size = inputCount * NBitcoinExtensions.P2wpkhInputVirtualSize + outputCount * NBitcoinExtensions.P2trOutputVirtualSize;
+var size = inputCount * NBitcoinExtensions.P2wpkhInputVirtualSize + mixer.Outputs.Sum(o => o.ScriptType.EstimateOutputVsize());
 var calculatedFeeRate = (ulong)(fee / (decimal)size);
 
 Console.WriteLine();
