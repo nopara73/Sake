@@ -291,7 +291,7 @@ namespace Sake
 
             setCandidates.Add( 
                 hash.ToHashCode(), // Create hash to ensure uniqueness.
-                (naiveSet.Select(x => (ulong)x.EffectiveCost.Satoshi), loss + CalculateCostMetrics(naiveSet)));
+                (naiveSet.Select(x => (ulong)x.EffectiveCost.Satoshi), loss + CalculateCost(naiveSet)));
 
 
             // Create many decompositions for optimization.
@@ -333,7 +333,7 @@ namespace Sake
                         hash.Add(item);
                     }
 
-                    var deficit = (myInputSum - (ulong)finalDenoms.Sum(d => d.EffectiveCost)) + CalculateCostMetrics(finalDenoms);
+                    var deficit = (myInputSum - (ulong)finalDenoms.Sum(d => d.EffectiveCost)) + CalculateCost(finalDenoms);
                     setCandidates.TryAdd(hash.ToHashCode(), (finalDenoms.Select(m => (ulong)m.EffectiveCost.Satoshi), deficit));
                 }
             }
@@ -443,7 +443,7 @@ namespace Sake
             }
         }
 
-        public static Money CalculateCostMetrics(IEnumerable<Output> outputs)
+        public static Money CalculateCost(IEnumerable<Output> outputs)
         {
             // The cost of the outputs. The more the worst.
             var outputCost = outputs.Sum(o => o.Fee);
