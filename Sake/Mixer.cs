@@ -32,7 +32,7 @@ namespace Sake
 
             // Create many standard denominations.
             Denominations = CreateDenominations();
-            ChangeScriptType = ScriptType.P2WPKH;
+            ChangeScriptType = GetNextScriptType();
         }
 
         public ScriptType ChangeScriptType { get; }
@@ -57,7 +57,8 @@ namespace Sake
 
             Output CreateDenom(double sats)
             {
-                return Output.FromDenomination(Money.Satoshis((ulong)sats), ScriptType.P2WPKH, FeeRate);
+                var scriptType = GetNextScriptType();
+                return Output.FromDenomination(Money.Satoshis((ulong)sats), scriptType, FeeRate);
             }
 
             // Powers of 2
@@ -467,6 +468,16 @@ namespace Sake
             var inputCost = outputs.Sum(o => o.InputFee);
 
             return outputCost + inputCost;
+        }
+
+        private ScriptType GetNextScriptType()
+        {
+            if (!IsTaprootAllowed)
+            {
+                return ScriptType.P2WPKH;
+            }
+
+            return Random.NextDouble() < 0.5 ? ScriptType.P2WPKH : ScriptType.Taproot;
         }
     }
 }
