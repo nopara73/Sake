@@ -1,6 +1,6 @@
 ﻿using NBitcoin;
 using Sake;
-
+using WalletWasabi.Extensions;
 
 var inputCount = 250;
 var userCount = 50;
@@ -33,7 +33,7 @@ var inputAmount = inputGroups.SelectMany(x => x).Sum();
 var outputAmount = outputGroups.SelectMany(x => x).Sum();
 var changeCount = outputGroups.SelectMany(x => x).GetIndistinguishable(includeSingle: true).Count(x => x.count == 1);
 var fee = inputAmount - outputAmount;
-var size = inputCount * mixer.InputSize + outputCount * mixer.OutputSize;
+var size = inputCount * NBitcoinExtensions.P2wpkhInputVirtualSize + mixer.Outputs.Sum(o => o.ScriptType.EstimateOutputVsize());
 var calculatedFeeRate = (ulong)(fee / (decimal)size);
 
 Console.WriteLine();
@@ -92,3 +92,4 @@ Console.WriteLine($"Blockspace efficiency:\t{Analyzer.BlockspaceEfficiency(input
 Console.WriteLine($"Total leftover:\t\t{mixer.Leftovers.Sum():0}");
 Console.WriteLine($"Median leftover:\t{mixer.Leftovers.Median():0}");
 Console.WriteLine($"Largest leftover:\t{mixer.Leftovers.Max():0}");
+Console.WriteLine($"Taproot/bech32 ratio:\t{mixer.Outputs.Where(o => o.ScriptType == ScriptType.Taproot).Count()}/{mixer.Outputs.Where(o => o.ScriptType == ScriptType.P2WPKH).Count()}");
