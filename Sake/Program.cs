@@ -2,9 +2,9 @@
 using Sake;
 using WalletWasabi.Extensions;
 
-var inputCount = 250;
-var userCount = 50;
-var remixRatio = 0.8;
+var inputCount = 218;
+var userCount = 42;
+var remixRatio = 0.96;
 
 var preRandomAmounts = Sample.Amounts.RandomElements(inputCount).Select(x => x.ToSats());
 var preGroups = preRandomAmounts.RandomGroups(userCount);
