@@ -181,7 +181,7 @@ namespace Sake
         public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
         {
             var inputArray = inputs.ToArray();
-            var allInputs= inputArray.SelectMany(x => x).ToArray();
+            var allInputs = inputArray.SelectMany(x => x).ToArray();
 
             var filteredDenominations = GetFilteredDenominations(allInputs);
 
@@ -220,18 +220,16 @@ namespace Sake
             var myInputs = myInputsParam.ToArray();
             var myInputSum = myInputs.Sum();
             var remaining = myInputSum;
+            var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
+            var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 8); // The absolute max possible with the smallest script type.
 
             var setCandidates = new Dictionary<int, (IEnumerable<Output> Decomp, Money Cost)>();
 
-            // How many times can we participate with the same denomination.
-            var maxDenomUsage = Random.Next(2, 8);
-
             // Create the most naive decomposition for starter.
             List<Output> naiveSet = new();
-            bool end = false;
             foreach (var denom in denoms.Where(x => x.EffectiveCost <= remaining))
             {
-                var denomUsage = 0;
+                bool end = false;
                 while (denom.EffectiveCost <= remaining)
                 {
                     // We can only let this go forward if at least 2 output can be added (denom + potential change)
@@ -244,10 +242,9 @@ namespace Sake
                     naiveSet.Add(denom);
                     remaining -= denom.EffectiveCost;
                     remainingVsize -= denom.ScriptType.EstimateOutputVsize();
-                    denomUsage++;
 
-                    // If we reached the limit, the rest will be change.
-                    if (denomUsage >= maxDenomUsage)
+                    // Can't have more denoms than max - 1, where -1 is to account for possible change.
+                    if (naiveSet.Count >= maxNumberOfOutputsAllowed - 1)
                     {
                         end = true;
                         break;
@@ -285,15 +282,13 @@ namespace Sake
                 hash.Add(item);
             }
 
-            setCandidates.Add( 
+            setCandidates.Add(
                 hash.ToHashCode(), // Create hash to ensure uniqueness.
                 (naiveSet, loss + CalculateCost(naiveSet)));
 
 
             // Create many decompositions for optimization.
             var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
-            var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 8); // The absolute max possible with the smallest script type.
             var tolerance = (long)Math.Max(loss.Satoshi, 0.5 * (ulong)(MinAllowedOutputAmount + ChangeFee).Satoshi); // Taking the changefee here, might be incorrect however it is just a tolerance.
 
             if (maxNumberOfOutputsAllowed > 1)
@@ -301,7 +296,7 @@ namespace Sake
                 foreach (var (sum, count, decomp) in Decomposer.Decompose(
                     target: (long)myInputSum,
                     tolerance: tolerance,
-                    maxCount: Math.Min(maxNumberOfOutputsAllowed, 8),
+                    maxCount: maxNumberOfOutputsAllowed,
                     stdDenoms: stdDenoms))
                 {
                     var currentSet = Decomposer.ToRealValuesArray(
