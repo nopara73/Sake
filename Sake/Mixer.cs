@@ -340,10 +340,21 @@ namespace Sake
                 .ThenBy(x => x.Decomp.Any(d => d.ScriptType == ScriptType.Taproot) && x.Decomp.Any(d => d.ScriptType == ScriptType.P2WPKH) ? 0 : 1) // Prefer mixed scripts types.
                 .Select(x => x).ToList();
 
-            // We want to introduce randomity between the best selections.
+            // We want to introduce randomness between the best selections.
             var bestCandidateCost = orderedCandidates.First().Cost;
             var costTolerance = Money.Coins(bestCandidateCost.ToUnit(MoneyUnit.BTC) * 1.2m);
-            var finalCandidates = orderedCandidates.Where(x => x.Cost <= costTolerance).ToArray();
+
+
+            // Change can only be max between: 100.000 satoshis, 10% of the inputs sum or 20% more than the best candidate change
+            var bestCandidateChange = CalculateChange(orderedCandidates.First().Decomp, denomHashSet);
+            var changeTolerance = Money.Coins(
+                Math.Max(
+                    Math.Max(
+                        myInputSum.ToUnit(MoneyUnit.BTC) * 0.1m,
+                        bestCandidateChange.ToUnit(MoneyUnit.BTC) * 1.2m),
+                    Money.Satoshis(100000).ToUnit(MoneyUnit.BTC)));
+
+            var finalCandidates = orderedCandidates.Where(x => x.Cost <= costTolerance && CalculateChange(x.Decomp, denomHashSet) <= changeTolerance).ToArray();
 
             // We want to make sure our random selection is not between similar decompositions.
             // Different largest elements result in very different decompositions.
@@ -463,6 +474,11 @@ namespace Sake
             var inputCost = outputs.Sum(o => o.InputFee);
 
             return outputCost + inputCost;
+        }
+        
+        private Money CalculateChange(IEnumerable<Output> decomposition, HashSet<Output> denomHashSet)
+        {
+            return decomposition.Sum(x => denomHashSet.Contains(x) ? 0 : x.Amount);
         }
 
         private ScriptType GetNextScriptType()
