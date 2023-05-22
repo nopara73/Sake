@@ -30,10 +30,9 @@ namespace Sake
                 Math.Max(
                     ScriptType.P2WPKH.EstimateInputVsize() + ScriptType.P2WPKH.EstimateOutputVsize(),
                     ScriptType.Taproot.EstimateInputVsize() + ScriptType.Taproot.EstimateOutputVsize()));
-            MinAllowedOutputAmount = Math.Max(minEconomicalOutput, minAllowedOutputAmount);
+            MinAllowedOutputAmount = Math.Max(3 * minEconomicalOutput, minAllowedOutputAmount);
             MaxAllowedOutputAmount = maxAllowedOutputAmount;
             Random = random ?? Random.Shared;
-
 
             // Create many standard denominations.
             Denominations = CreateDenominations();
@@ -238,7 +237,7 @@ namespace Sake
                 while (denom.EffectiveCost <= remaining)
                 {
                     // We can only let this go forward if at least 2 output can be added (denom + potential change)
-                    if (remaining < MinAllowedOutputAmount + ChangeFee || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
+                    if (remaining < MinAllowedOutputAmount || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
                     {
                         end = true;
                         break;
@@ -263,7 +262,7 @@ namespace Sake
             }
 
             var loss = Money.Zero;
-            if (remaining >= MinAllowedOutputAmount + ChangeFee)
+            if (remaining >= MinAllowedOutputAmount)
             {
                 var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
                 naiveSet.Add(change);
@@ -299,7 +298,7 @@ namespace Sake
             {
                 foreach (var (sum, count, decomp) in Decomposer.Decompose(
                     target: (long)myInputSum,
-                    tolerance: (MinAllowedOutputAmount + ChangeFee).Satoshi,
+                    tolerance: MinAllowedOutputAmount.Satoshi,
                     maxCount: maxNumberOfOutputsAllowed,
                     stdDenoms: stdDenoms))
                 {
@@ -344,10 +343,15 @@ namespace Sake
                 .ThenBy(x => x.Decomp.Any(d => d.ScriptType == ScriptType.Taproot) && x.Decomp.Any(d => d.ScriptType == ScriptType.P2WPKH) ? 0 : 1) // Prefer mixed scripts types.
                 .Select(x => x).ToList();
 
+            // We want to introduce randomity between the best selections.
+            var bestCandidateCost = orderedCandidates.First().Cost;
+            var costTolerance = Money.Coins(bestCandidateCost.ToUnit(MoneyUnit.BTC) * 1.2m);
+            var finalCandidates = orderedCandidates.Where(x => x.Cost <= costTolerance).ToArray();
+
             // We want to make sure our random selection is not between similar decompositions.
             // Different largest elements result in very different decompositions.
-            var largestAmount = orderedCandidates.Select(x => x.Decomp.First()).ToHashSet().RandomElement(Random);
-            var finalCandidate = orderedCandidates.Where(x => x.Decomp.First() == largestAmount).RandomElement(Random).Decomp;
+            var largestAmount = finalCandidates.Select(x => x.Decomp.First()).ToHashSet().RandomElement(Random);
+            var finalCandidate = finalCandidates.Where(x => x.Decomp.First() == largestAmount).RandomElement(Random).Decomp;
 
             // Sanity check
             var totalOutputAmount = Money.Satoshis(finalCandidate.Sum(x => x.EffectiveCost));
