@@ -25,7 +25,12 @@ namespace Sake
         {
             FeeRate = feeRate;
             IsTaprootAllowed = isTaprootAllowed;
-            MinAllowedOutputAmount = minAllowedOutputAmount;
+
+            var minEconomicalOutput = FeeRate.GetFee(
+                Math.Max(
+                    ScriptType.P2WPKH.EstimateInputVsize() + ScriptType.P2WPKH.EstimateOutputVsize(),
+                    ScriptType.Taproot.EstimateInputVsize() + ScriptType.Taproot.EstimateOutputVsize()));
+            MinAllowedOutputAmount = Math.Max(minEconomicalOutput, minAllowedOutputAmount);
             MaxAllowedOutputAmount = maxAllowedOutputAmount;
             Random = random ?? Random.Shared;
 
@@ -289,13 +294,12 @@ namespace Sake
 
             // Create many decompositions for optimization.
             var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            var tolerance = (long)Math.Max(loss.Satoshi, 0.5 * (ulong)(MinAllowedOutputAmount + ChangeFee).Satoshi); // Taking the changefee here, might be incorrect however it is just a tolerance.
 
             if (maxNumberOfOutputsAllowed > 1)
             {
                 foreach (var (sum, count, decomp) in Decomposer.Decompose(
                     target: (long)myInputSum,
-                    tolerance: tolerance,
+                    tolerance: (MinAllowedOutputAmount + ChangeFee).Satoshi,
                     maxCount: maxNumberOfOutputsAllowed,
                     stdDenoms: stdDenoms))
                 {
@@ -340,15 +344,10 @@ namespace Sake
                 .ThenBy(x => x.Decomp.Any(d => d.ScriptType == ScriptType.Taproot) && x.Decomp.Any(d => d.ScriptType == ScriptType.P2WPKH) ? 0 : 1) // Prefer mixed scripts types.
                 .Select(x => x).ToList();
 
-            // We want to introduce randomity between the best selections.
-            var bestCandidateCost = orderedCandidates.First().Cost;
-            var costTolerance = Money.Coins(bestCandidateCost.ToUnit(MoneyUnit.BTC) * 1.2m);
-            var finalCandidates = orderedCandidates.Where(x => x.Cost <= costTolerance).ToArray();
-
             // We want to make sure our random selection is not between similar decompositions.
             // Different largest elements result in very different decompositions.
-            var largestAmount = finalCandidates.Select(x => x.Decomp.First()).ToHashSet().RandomElement(Random);
-            var finalCandidate = finalCandidates.Where(x => x.Decomp.First() == largestAmount).RandomElement(Random).Decomp;
+            var largestAmount = orderedCandidates.Select(x => x.Decomp.First()).ToHashSet().RandomElement(Random);
+            var finalCandidate = orderedCandidates.Where(x => x.Decomp.First() == largestAmount).RandomElement(Random).Decomp;
 
             // Sanity check
             var totalOutputAmount = Money.Satoshis(finalCandidate.Sum(x => x.EffectiveCost));
