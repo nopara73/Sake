@@ -32,7 +32,7 @@ namespace Sake
 
             // Create many standard denominations.
             Denominations = CreateDenominations();
-            ChangeScriptType = GetNextScriptType();
+            ChangeScriptType = NBitcoinExtensions.GetNextScriptType(IsTaprootAllowed, Random);
         }
 
         public ScriptType ChangeScriptType { get; }
@@ -57,7 +57,7 @@ namespace Sake
 
             Output CreateDenom(double sats)
             {
-                var scriptType = GetNextScriptType();
+                var scriptType = NBitcoinExtensions.GetNextScriptType(IsTaprootAllowed, Random);
                 return Output.FromDenomination(Money.Satoshis((ulong)sats), scriptType, FeeRate);
             }
 
@@ -178,7 +178,7 @@ namespace Sake
         /// </summary>
         /// <param name="inputs">Input effective values. The fee substracted, this is how the code works in the original repo.</param>
         /// <returns></returns>
-        public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
+        public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<Input>> inputs)
         {
             var inputArray = inputs.ToArray();
             var allInputs = inputArray.SelectMany(x => x).ToArray();
@@ -198,7 +198,7 @@ namespace Sake
             for (int i = 0; i < inputArray.Length; i++)
             {
                 var currentUser = inputArray[i];
-                var others = new List<ulong>();
+                var others = new List<Input>();
                 for (int j = 0; j < inputArray.Length; j++)
                 {
                     if (i != j)
@@ -206,19 +206,19 @@ namespace Sake
                         others.AddRange(inputArray[j]);
                     }
                 }
-                yield return Decompose(currentUser.Select(s => Money.Satoshis(s)), filteredDenominations, maxVsizeCredentialValue).Select(d => (ulong)d.Amount.Satoshi); ;
+                yield return Decompose(currentUser, filteredDenominations, maxVsizeCredentialValue).Select(d => (ulong)d.Amount.Satoshi); ;
             }
         }
 
         /// <param name="myInputsParam">Input effective values. The fee substracted, this is how the code works in the original repo.</param>
         /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
-        public IEnumerable<Output> Decompose(IEnumerable<Money> myInputsParam, IEnumerable<Output> denoms, int maxVsizeCredentialValue)
+        public IEnumerable<Output> Decompose(IEnumerable<Input> myInputsParam, IEnumerable<Output> denoms, int maxVsizeCredentialValue)
         {
             // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
-            var availableVsize = myInputsParam.Sum(input => maxVsizeCredentialValue - ScriptType.P2WPKH.EstimateInputVsize());
+            var availableVsize = myInputsParam.Sum(input => maxVsizeCredentialValue - input.ScriptType.EstimateInputVsize());
             var remainingVsize = availableVsize;
             var myInputs = myInputsParam.ToArray();
-            var myInputSum = myInputs.Sum();
+            var myInputSum = (ulong)myInputs.Sum(x => x.EffectiveValue);
             var remaining = myInputSum;
             var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
             var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 8); // The absolute max possible with the smallest script type.
@@ -288,7 +288,7 @@ namespace Sake
 
 
             // Create many decompositions for optimization.
-            var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
+            var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => (ulong)x <= myInputSum).ToArray();
             var tolerance = (long)Math.Max(loss.Satoshi, 0.5 * (ulong)(MinAllowedOutputAmount + ChangeFee).Satoshi); // Taking the changefee here, might be incorrect however it is just a tolerance.
 
             if (maxNumberOfOutputsAllowed > 1)
@@ -379,18 +379,18 @@ namespace Sake
             return finalCandidate;
         }
 
-        private IEnumerable<Output> GetFilteredDenominations(IEnumerable<ulong> inputs)
+        private IEnumerable<Output> GetFilteredDenominations(IEnumerable<Input> inputs)
         {
-            var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
+            var secondLargestInput = inputs.OrderByDescending(x => x.EffectiveValue).Skip(1).First();
             IEnumerable<Output> demonsForBreakDown = Denominations
-                .Where(x => x.EffectiveCost <= secondLargestInput)
+                .Where(x => x.EffectiveCost <= secondLargestInput.EffectiveValue)
                 .OrderByDescending(x => x.Amount)
                 .ThenBy(x => x.EffectiveCost); // If the amount is the same, the cheaper to spend should be the first - so greedy will take that.
 
             Dictionary<Output, uint> denoms = new();
             foreach (var input in inputs)
             {
-                foreach (var denom in BreakDown(input, demonsForBreakDown))
+                foreach (var denom in BreakDown(input.EffectiveValue, demonsForBreakDown))
                 {
                     if (!denoms.TryAdd(denom, 1))
                     {
@@ -463,16 +463,6 @@ namespace Sake
             var inputCost = outputs.Sum(o => o.InputFee);
 
             return outputCost + inputCost;
-        }
-
-        private ScriptType GetNextScriptType()
-        {
-            if (!IsTaprootAllowed)
-            {
-                return ScriptType.P2WPKH;
-            }
-
-            return Random.NextDouble() < 0.5 ? ScriptType.P2WPKH : ScriptType.Taproot;
         }
     }
 }

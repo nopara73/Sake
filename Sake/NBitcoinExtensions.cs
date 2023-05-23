@@ -48,6 +48,15 @@ public static class NBitcoinExtensions
         return amount - netFee;
     }
 
+    public static ScriptType GetNextScriptType(bool isTaprootAllowed, Random random)
+    {
+        if (!isTaprootAllowed)
+        {
+            return ScriptType.P2WPKH;
+        }
+
+        return random.NextDouble() < 0.5 ? ScriptType.P2WPKH : ScriptType.Taproot;
+    }
 
     public static ScriptType GetScriptType(this Script script)
     {
