@@ -287,6 +287,12 @@ namespace Sake
                 (naiveSet, loss + CalculateCost(naiveSet)));
 
 
+            // Create more pre-decompositions for sanity:
+            foreach (var decomp in CreatePreDecompositions(denoms, availableVsize, myInputSum, maxNumberOfOutputsAllowed))
+            {
+                setCandidates.TryAdd(decomp.Key, decomp.Value);
+            }
+
             // Create many decompositions for optimization.
             var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
             var tolerance = (long)Math.Max(loss.Satoshi, 0.5 * (ulong)(MinAllowedOutputAmount + ChangeFee).Satoshi); // Taking the changefee here, might be incorrect however it is just a tolerance.
@@ -334,6 +340,13 @@ namespace Sake
             var preCandidates = setCandidates.Select(x => x.Value).ToList();
             preCandidates.Shuffle();
 
+            // Avoid changes whenever possible
+            var changeLessCandidates = preCandidates.Where(x => x.Decomp.All(y => denomHashSet.Contains(y))).ToList();
+            if (changeLessCandidates.Count > 0)
+            {
+                preCandidates = changeLessCandidates;
+            }
+
             var orderedCandidates = preCandidates
                 .OrderBy(x => x.Decomp.Sum(y => denomHashSet.Contains(y) ? Money.Zero : y.Amount)) // Prefer lower change.
                 .ThenBy(x => x.Cost) // Less cost is better.
@@ -377,6 +390,69 @@ namespace Sake
             Outputs.AddRange(finalCandidate);
 
             return finalCandidate;
+        }
+
+        private IDictionary<int, (IEnumerable<Output> Decomp, Money Cost)> CreatePreDecompositions(IEnumerable<Output> denoms, int availableVsize, Money myInputSum, int maxNumberOfOutputsAllowed)
+        {
+            var setCandidates = new Dictionary<int, (IEnumerable<Output> Decomp, Money Cost)>();
+            for (int i = 0; i < 1000; i++)
+            {
+                var remainingVsize = availableVsize;
+                var remaining = myInputSum;
+                List<Output> currentSet = new();
+                while (true)
+                {
+                    var denom = denoms.Where(x => x.EffectiveCost <= remaining && x.EffectiveCost >= (remaining / 3)).RandomElement(Random)
+                        ?? denoms.FirstOrDefault(x => x.EffectiveCost <= remaining);
+
+                    // We can only let this go forward if at least 2 output can be added (denom + potential change)
+                    if (denom is null || remaining < MinAllowedOutputAmount + ChangeFee || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
+                    {
+                        break;
+                    }
+
+                    currentSet.Add(denom);
+                    remaining -= denom.EffectiveCost;
+                    remainingVsize -= denom.ScriptType.EstimateOutputVsize();
+
+                    // Can't have more denoms than max - 1, where -1 is to account for possible change.
+                    if (currentSet.Count >= maxNumberOfOutputsAllowed - 1)
+                    {
+                        break;
+                    }
+                }
+
+                var loss = Money.Zero;
+                if (remaining >= MinAllowedOutputAmount + ChangeFee)
+                {
+                    var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
+                    currentSet.Add(change);
+                }
+                else
+                {
+                    // This goes to miners.
+                    loss = remaining;
+                }
+
+                // This can happen when smallest denom is larger than the input sum.
+                if (currentSet.Count == 0)
+                {
+                    var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
+                    currentSet.Add(change);
+                }
+
+                HashCode h = new();
+                foreach (var item in currentSet.OrderBy(x => x.Amount))
+                {
+                    h.Add(item);
+                }
+
+                setCandidates.TryAdd(
+                    h.ToHashCode(), // Create hash to ensure uniqueness.
+                    (currentSet, loss + CalculateCost(currentSet)));
+            }
+
+            return setCandidates;
         }
 
         private IEnumerable<Output> GetFilteredDenominations(IEnumerable<ulong> inputs)
