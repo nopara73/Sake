@@ -181,11 +181,11 @@ namespace Sake
         public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<Input>> inputs)
         {
             var inputArray = inputs.ToArray();
-            var allInputs = inputArray.SelectMany(x => x).ToArray();
+            var allInputsEffectiveValue = inputArray.SelectMany(x => x).Select(x => x.EffectiveValue).ToArray();
 
-            var filteredDenominations = GetFilteredDenominations(allInputs);
+            var filteredDenominations = GetFilteredDenominations(allInputsEffectiveValue);
 
-            var totalInputCount = allInputs.Length;
+            var totalInputCount = allInputsEffectiveValue.Length;
 
             // This calculation is coming from here: https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Backend/Rounds/RoundParameters.cs#L48
             StandardTransactionPolicy standardTransactionPolicy = new();
@@ -381,18 +381,18 @@ namespace Sake
             return finalCandidate;
         }
 
-        private IEnumerable<Output> GetFilteredDenominations(IEnumerable<Input> inputs)
+        private IEnumerable<Output> GetFilteredDenominations(IEnumerable<Money> inputs)
         {
-            var secondLargestInput = inputs.OrderByDescending(x => x.EffectiveValue).Skip(1).First();
+            var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
             IEnumerable<Output> demonsForBreakDown = Denominations
-                .Where(x => x.EffectiveCost <= secondLargestInput.EffectiveValue)
+                .Where(x => x.EffectiveCost <= secondLargestInput)
                 .OrderByDescending(x => x.Amount)
                 .ThenBy(x => x.EffectiveCost); // If the amount is the same, the cheaper to spend should be the first - so greedy will take that.
 
             Dictionary<Output, uint> denoms = new();
             foreach (var input in inputs)
             {
-                foreach (var denom in BreakDown(input.EffectiveValue, demonsForBreakDown))
+                foreach (var denom in BreakDown(input, demonsForBreakDown))
                 {
                     if (!denoms.TryAdd(denom, 1))
                     {
