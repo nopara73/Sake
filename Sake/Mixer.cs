@@ -181,7 +181,7 @@ namespace Sake
         public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<Input>> inputs)
         {
             var inputArray = inputs.ToArray();
-            var allInputsEffectiveValue = inputArray.SelectMany(x => x).Select(x => x.EffectiveValue).ToArray();
+            var allInputsEffectiveValue = inputArray.SelectMany(x => x).Select(x => (ulong)x.EffectiveValue.Satoshi).ToArray();
 
             var filteredDenominations = GetFilteredDenominations(allInputsEffectiveValue);
 
@@ -220,7 +220,7 @@ namespace Sake
         {
             var remainingVsize = availableVsize;
             var myInputs = myInputsParam.ToArray();
-            var myInputSum = (ulong)myInputs.Sum();
+            var myInputSum = myInputs.Sum();
             var remaining = myInputSum;
             var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
             var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 8); // The absolute max possible with the smallest script type.
@@ -290,7 +290,7 @@ namespace Sake
 
 
             // Create many decompositions for optimization.
-            var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => (ulong)x <= myInputSum).ToArray();
+            var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
             var tolerance = (long)Math.Max(loss.Satoshi, 0.5 * (ulong)(MinAllowedOutputAmount + ChangeFee).Satoshi); // Taking the changefee here, might be incorrect however it is just a tolerance.
 
             if (maxNumberOfOutputsAllowed > 1)
@@ -381,7 +381,7 @@ namespace Sake
             return finalCandidate;
         }
 
-        private IEnumerable<Output> GetFilteredDenominations(IEnumerable<Money> inputs)
+        private IEnumerable<Output> GetFilteredDenominations(IEnumerable<ulong> inputs)
         {
             var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
             IEnumerable<Output> demonsForBreakDown = Denominations
