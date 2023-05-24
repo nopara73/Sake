@@ -11,7 +11,7 @@ var max = Money.Coins(43000m);
 var feeRate = new FeeRate(10m);
 var random = new Random();
 
-var maxInputCost = Money.Satoshis(NBitcoinExtensions.P2trInputVirtualSize * feeRate.SatoshiPerByte);
+var maxInputCost = Money.Satoshis(Math.Max(NBitcoinExtensions.P2wpkhInputVirtualSize, NBitcoinExtensions.P2trInputVirtualSize) * feeRate.SatoshiPerByte);
 
 // Don't select inputs that costs more to spend than their value. This is what happens in SelectCoinsForRound.
 var preRandomAmounts = Sample.Amounts
