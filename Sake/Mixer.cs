@@ -337,7 +337,7 @@ namespace Sake
             preCandidates.Shuffle();
 
             var orderedCandidates = preCandidates
-                .OrderBy(x => x.Decomp.All(x => denomHashSet.Contains(x)) ? 0 : 1) // Prefer no change.
+                .OrderBy(x => x.Decomp.Sum(y => denomHashSet.Contains(y) ? Money.Zero : y.Amount)) // Prefer lower change.
                 .ThenBy(x => x.Cost) // Less cost is better.
                 .ThenBy(x => x.Decomp.Any(d => d.ScriptType == ScriptType.Taproot) && x.Decomp.Any(d => d.ScriptType == ScriptType.P2WPKH) ? 0 : 1) // Prefer mixed scripts types.
                 .Select(x => x).ToList();
