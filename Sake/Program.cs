@@ -17,7 +17,7 @@ var maxInputCost = Money.Satoshis(NBitcoinExtensions.P2trInputVirtualSize * feeR
 var preRandomAmounts = Sample.Amounts
     .Where(x => Money.Coins(x) > maxInputCost)
     .RandomElements(inputCount)
-    .Select(x => new Input(Money.Coins(x), NBitcoinExtensions.GetNextScriptType(true, random), feeRate));
+    .Select(x => new Input(Money.Coins(x), Mixer.GetNextScriptType(true, random), feeRate));
 
 var preGroups = preRandomAmounts.RandomGroups(userCount);
 var preMixer = new Mixer(feeRate, min, max, true, random);
@@ -28,12 +28,12 @@ var remixCount = (int)(inputCount * remixRatio);
 var randomAmounts = Sample.Amounts
     .Where(x => Money.Coins(x) > maxInputCost)
     .RandomElements(inputCount - remixCount)
-    .Select(x => new Input(Money.Coins(x), NBitcoinExtensions.GetNextScriptType(true, random), feeRate));
+    .Select(x => new Input(Money.Coins(x), Mixer.GetNextScriptType(true, random), feeRate));
 
 var remixAmounts = preMix.SelectMany(x => x)
     .Where(x => Money.Satoshis(x) > maxInputCost)
     .RandomElements(remixCount)
-    .Select(x => new Input(Money.Satoshis(x), NBitcoinExtensions.GetNextScriptType(true, random), feeRate));
+    .Select(x => new Input(Money.Satoshis(x), Mixer.GetNextScriptType(true, random), feeRate));
 
 var newRoundAmounts = randomAmounts.Concat(remixAmounts);
 var newRoundInputGroups = newRoundAmounts.RandomGroups(userCount).ToArray();

@@ -32,7 +32,7 @@ namespace Sake
 
             // Create many standard denominations.
             Denominations = CreateDenominations();
-            ChangeScriptType = NBitcoinExtensions.GetNextScriptType(IsTaprootAllowed, Random);
+            ChangeScriptType = GetNextScriptType();
         }
 
         public ScriptType ChangeScriptType { get; }
@@ -57,7 +57,7 @@ namespace Sake
 
             Output CreateDenom(double sats)
             {
-                var scriptType = NBitcoinExtensions.GetNextScriptType(IsTaprootAllowed, Random);
+                var scriptType = GetNextScriptType();
                 return Output.FromDenomination(Money.Satoshis((ulong)sats), scriptType, FeeRate);
             }
 
@@ -198,6 +198,10 @@ namespace Sake
             for (int i = 0; i < inputArray.Length; i++)
             {
                 var currentUser = inputArray[i];
+                
+                // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
+                var availableVsize = currentUser.Sum(input => maxVsizeCredentialValue - input.ScriptType.EstimateInputVsize());
+                
                 var others = new List<Input>();
                 for (int j = 0; j < inputArray.Length; j++)
                 {
@@ -206,19 +210,17 @@ namespace Sake
                         others.AddRange(inputArray[j]);
                     }
                 }
-                yield return Decompose(currentUser, filteredDenominations, maxVsizeCredentialValue).Select(d => (ulong)d.Amount.Satoshi); ;
+                yield return Decompose(currentUser.Select(x => x.EffectiveValue), filteredDenominations, availableVsize).Select(d => (ulong)d.Amount.Satoshi); ;
             }
         }
 
         /// <param name="myInputsParam">Input effective values. The fee substracted, this is how the code works in the original repo.</param>
-        /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
-        public IEnumerable<Output> Decompose(IEnumerable<Input> myInputsParam, IEnumerable<Output> denoms, int maxVsizeCredentialValue)
+        /// <param name="availableVsize">Calculated totalVsize that we can use for the outputs..</param>
+        public IEnumerable<Output> Decompose(IEnumerable<Money> myInputsParam, IEnumerable<Output> denoms, int availableVsize)
         {
-            // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
-            var availableVsize = myInputsParam.Sum(input => maxVsizeCredentialValue - input.ScriptType.EstimateInputVsize());
             var remainingVsize = availableVsize;
             var myInputs = myInputsParam.ToArray();
-            var myInputSum = (ulong)myInputs.Sum(x => x.EffectiveValue);
+            var myInputSum = (ulong)myInputs.Sum();
             var remaining = myInputSum;
             var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
             var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 8); // The absolute max possible with the smallest script type.
@@ -463,6 +465,21 @@ namespace Sake
             var inputCost = outputs.Sum(o => o.InputFee);
 
             return outputCost + inputCost;
+        }
+
+        private ScriptType GetNextScriptType()
+        {
+            return GetNextScriptType(IsTaprootAllowed, Random);
+        }
+        
+        public static ScriptType GetNextScriptType(bool isTaprootAllowed, Random random)
+        {
+            if (!isTaprootAllowed)
+            {
+                return ScriptType.P2WPKH;
+            }
+
+            return random.NextDouble() < 0.5 ? ScriptType.P2WPKH : ScriptType.Taproot;
         }
     }
 }
