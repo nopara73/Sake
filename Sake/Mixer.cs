@@ -341,7 +341,6 @@ namespace Sake
             {
                 preCandidates = changelessCandidates;
             }
-
             preCandidates.Shuffle();
 
             var orderedCandidates = preCandidates
