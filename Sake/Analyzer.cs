@@ -10,7 +10,10 @@ namespace Sake
     {
         public static decimal AverageAnonsetGain(IEnumerable<IEnumerable<decimal>> inputs, IEnumerable<IEnumerable<decimal>> outputs)
             => AverageAnonsetGain(inputs.Select(x => x.Select(y => y.ToSats())), outputs.Select(x => x.Select(y => y.ToSats())));
-
+        
+        public static decimal AverageAnonsetGain(IEnumerable<IEnumerable<Input>> inputs, IEnumerable<IEnumerable<ulong>> outputs)
+            => AverageAnonsetGain(inputs.Select(x => x.Select(y => (ulong)y.Amount.Satoshi)), outputs);
+        
         public static decimal AverageAnonsetGain(IEnumerable<IEnumerable<ulong>> inputs, IEnumerable<IEnumerable<ulong>> outputs)
         {
             var inputSum = inputs.SelectMany(x => x).Sum();
@@ -22,6 +25,9 @@ namespace Sake
         public static decimal AverageAnonsetGain(IEnumerable<IEnumerable<decimal>> valueGroups)
             => AverageAnonsetGain(valueGroups.Select(x => x.Select(y => y.ToSats())));
 
+        public static decimal AverageAnonsetGain(IEnumerable<IEnumerable<Input>> valueGroups)
+            => AverageAnonsetGain(valueGroups.Select(x => x.Select(y => (ulong)y.Amount.Satoshi)));
+        
         public static decimal AverageAnonsetGain(IEnumerable<IEnumerable<ulong>> valueGroups)
         {
             var totalAnonsetWeighted = 0ul;
@@ -60,7 +66,7 @@ namespace Sake
             return totalAnonsetWeighted / (decimal)sum;
         }
 
-        public static decimal BlockspaceEfficiency(IEnumerable<IEnumerable<ulong>> inputs, IEnumerable<IEnumerable<ulong>> outputs, long size)
+        public static decimal BlockspaceEfficiency(IEnumerable<IEnumerable<Input>> inputs, IEnumerable<IEnumerable<ulong>> outputs, long size)
         {
             var avgAnon = AverageAnonsetGain(inputs, outputs);
             return avgAnon / (size / 1000m);

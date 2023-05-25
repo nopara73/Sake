@@ -48,7 +48,6 @@ public static class NBitcoinExtensions
         return amount - netFee;
     }
 
-
     public static ScriptType GetScriptType(this Script script)
     {
         return TryGetScriptType(script) ?? throw new NotImplementedException($"Unsupported script type.");

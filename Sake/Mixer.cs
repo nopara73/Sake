@@ -178,14 +178,14 @@ namespace Sake
         /// </summary>
         /// <param name="inputs">Input effective values. The fee substracted, this is how the code works in the original repo.</param>
         /// <returns></returns>
-        public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<ulong>> inputs)
+        public IEnumerable<IEnumerable<ulong>> CompleteMix(IEnumerable<IEnumerable<Input>> inputs)
         {
             var inputArray = inputs.ToArray();
-            var allInputs = inputArray.SelectMany(x => x).ToArray();
+            var allInputsEffectiveValue = inputArray.SelectMany(x => x).Select(x => (ulong)x.EffectiveValue.Satoshi).ToArray();
 
-            var filteredDenominations = GetFilteredDenominations(allInputs);
+            var filteredDenominations = GetFilteredDenominations(allInputsEffectiveValue);
 
-            var totalInputCount = allInputs.Length;
+            var totalInputCount = allInputsEffectiveValue.Length;
 
             // This calculation is coming from here: https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Backend/Rounds/RoundParameters.cs#L48
             StandardTransactionPolicy standardTransactionPolicy = new();
@@ -198,7 +198,11 @@ namespace Sake
             for (int i = 0; i < inputArray.Length; i++)
             {
                 var currentUser = inputArray[i];
-                var others = new List<ulong>();
+                
+                // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
+                var availableVsize = currentUser.Sum(input => maxVsizeCredentialValue - input.ScriptType.EstimateInputVsize());
+                
+                var others = new List<Input>();
                 for (int j = 0; j < inputArray.Length; j++)
                 {
                     if (i != j)
@@ -206,16 +210,14 @@ namespace Sake
                         others.AddRange(inputArray[j]);
                     }
                 }
-                yield return Decompose(currentUser.Select(s => Money.Satoshis(s)), filteredDenominations, maxVsizeCredentialValue).Select(d => (ulong)d.Amount.Satoshi); ;
+                yield return Decompose(currentUser.Select(x => x.EffectiveValue), filteredDenominations, availableVsize).Select(d => (ulong)d.Amount.Satoshi); ;
             }
         }
 
         /// <param name="myInputsParam">Input effective values. The fee substracted, this is how the code works in the original repo.</param>
-        /// <param name="maxVsizeCredentialValue">Maximum usable Vsize that client can get per alice.</param>
-        public IEnumerable<Output> Decompose(IEnumerable<Money> myInputsParam, IEnumerable<Output> denoms, int maxVsizeCredentialValue)
+        /// <param name="availableVsize">Calculated totalVsize that we can use for the outputs..</param>
+        public IEnumerable<Output> Decompose(IEnumerable<Money> myInputsParam, IEnumerable<Output> denoms, int availableVsize)
         {
-            // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
-            var availableVsize = myInputsParam.Sum(input => maxVsizeCredentialValue - ScriptType.P2WPKH.EstimateInputVsize());
             var myInputs = myInputsParam.ToArray();
             var myInputSum = myInputs.Sum();
             var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
@@ -471,12 +473,17 @@ namespace Sake
 
         private ScriptType GetNextScriptType()
         {
-            if (!IsTaprootAllowed)
+            return GetNextScriptType(IsTaprootAllowed, Random);
+        }
+        
+        public static ScriptType GetNextScriptType(bool isTaprootAllowed, Random random)
+        {
+            if (!isTaprootAllowed)
             {
                 return ScriptType.P2WPKH;
             }
 
-            return Random.NextDouble() < 0.5 ? ScriptType.P2WPKH : ScriptType.Taproot;
+            return random.NextDouble() < 0.5 ? ScriptType.P2WPKH : ScriptType.Taproot;
         }
     }
 }
