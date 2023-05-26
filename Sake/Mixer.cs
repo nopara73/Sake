@@ -335,7 +335,7 @@ namespace Sake
 
             var preCandidates = setCandidates.Select(x => x.Value).ToList();
 
-            // If there rae changeless candidates, don't even consider ones with change.
+            // If there are changeless candidates, don't even consider ones with change.
             var changelessCandidates = preCandidates.Where(x => x.Decomp.All(y => denomHashSet.Contains(y))).ToList();
             if (changelessCandidates.Any())
             {
