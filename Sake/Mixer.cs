@@ -218,86 +218,26 @@ namespace Sake
         /// <param name="availableVsize">Calculated totalVsize that we can use for the outputs..</param>
         public IEnumerable<Output> Decompose(IEnumerable<Money> myInputsParam, IEnumerable<Output> denoms, int availableVsize)
         {
-            var remainingVsize = availableVsize;
             var myInputs = myInputsParam.ToArray();
             var myInputSum = myInputs.Sum();
-            var remaining = myInputSum;
             var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
             var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 8); // The absolute max possible with the smallest script type.
 
             var setCandidates = new Dictionary<int, (IEnumerable<Output> Decomp, Money Cost)>();
 
             // Create the most naive decomposition for starter.
-            List<Output> naiveSet = new();
-            foreach (var denom in denoms.Where(x => x.EffectiveCost <= remaining))
-            {
-                bool end = false;
-                while (denom.EffectiveCost <= remaining)
-                {
-                    // We can only let this go forward if at least 2 output can be added (denom + potential change)
-                    if (remaining < MinAllowedOutputAmount + ChangeFee || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
-                    {
-                        end = true;
-                        break;
-                    }
-
-                    naiveSet.Add(denom);
-                    remaining -= denom.EffectiveCost;
-                    remainingVsize -= denom.ScriptType.EstimateOutputVsize();
-
-                    // Can't have more denoms than max - 1, where -1 is to account for possible change.
-                    if (naiveSet.Count >= maxNumberOfOutputsAllowed - 1)
-                    {
-                        end = true;
-                        break;
-                    }
-                }
-
-                if (end)
-                {
-                    break;
-                }
-            }
-
-            var loss = Money.Zero;
-            if (remaining >= MinAllowedOutputAmount + ChangeFee)
-            {
-                var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
-                naiveSet.Add(change);
-            }
-            else
-            {
-                // This goes to miners.
-                loss = remaining;
-            }
-
-            // This can happen when smallest denom is larger than the input sum.
-            if (naiveSet.Count == 0)
-            {
-                var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
-                naiveSet.Add(change);
-            }
-
-            HashCode hash = new();
-            foreach (var item in naiveSet.OrderBy(x => x.Amount))
-            {
-                hash.Add(item);
-            }
-
-            setCandidates.Add(
-                hash.ToHashCode(), // Create hash to ensure uniqueness.
-                (naiveSet, loss + CalculateCost(naiveSet)));
+            var naiveDecomp = CreateNaiveDecomposition(denoms, availableVsize, myInputSum, maxNumberOfOutputsAllowed);
+            setCandidates.Add(naiveDecomp.Key, naiveDecomp.Value);
 
 
             // Create many decompositions for optimization.
             var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            var tolerance = (long)Math.Max(loss.Satoshi, 0.5 * (ulong)(MinAllowedOutputAmount + ChangeFee).Satoshi); // Taking the changefee here, might be incorrect however it is just a tolerance.
-
+            
             if (maxNumberOfOutputsAllowed > 1)
             {
                 foreach (var (sum, count, decomp) in Decomposer.Decompose(
                     target: (long)myInputSum,
-                    tolerance: tolerance,
+                    tolerance: MinAllowedOutputAmount + ChangeFee,
                     maxCount: maxNumberOfOutputsAllowed,
                     stdDenoms: stdDenoms))
                 {
@@ -320,7 +260,7 @@ namespace Sake
                         continue;
                     }
 
-                    hash = new();
+                    HashCode hash = new();
                     foreach (var item in finalDenoms.OrderBy(x => x.Amount))
                     {
                         hash.Add(item);
@@ -386,6 +326,70 @@ namespace Sake
             Outputs.AddRange(finalCandidate);
 
             return finalCandidate;
+        }
+
+        private KeyValuePair<int, (IEnumerable<Output> Decomp, Money Cost)> CreateNaiveDecomposition(IEnumerable<Output> denoms, int availableVsize, Money myInputSum, int maxNumberOfOutputsAllowed)
+        {
+            var remainingVsize = availableVsize;
+            var remaining = myInputSum;
+
+            List<Output> naiveSet = new();
+            foreach (var denom in denoms.Where(x => x.EffectiveCost <= remaining))
+            {
+                bool end = false;
+                while (denom.EffectiveCost <= remaining)
+                {
+                    // We can only let this go forward if at least 2 output can be added (denom + potential change)
+                    if (remaining < MinAllowedOutputAmount + ChangeFee || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
+                    {
+                        end = true;
+                        break;
+                    }
+
+                    naiveSet.Add(denom);
+                    remaining -= denom.EffectiveCost;
+                    remainingVsize -= denom.ScriptType.EstimateOutputVsize();
+
+                    // Can't have more denoms than max - 1, where -1 is to account for possible change.
+                    if (naiveSet.Count >= maxNumberOfOutputsAllowed - 1)
+                    {
+                        end = true;
+                        break;
+                    }
+                }
+
+                if (end)
+                {
+                    break;
+                }
+            }
+
+            var loss = Money.Zero;
+            if (remaining >= MinAllowedOutputAmount + ChangeFee)
+            {
+                var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
+                naiveSet.Add(change);
+            }
+            else
+            {
+                // This goes to miners.
+                loss = remaining;
+            }
+
+            // This can happen when smallest denom is larger than the input sum.
+            if (naiveSet.Count == 0)
+            {
+                var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
+                naiveSet.Add(change);
+            }
+
+            HashCode hash = new();
+            foreach (var item in naiveSet.OrderBy(x => x.Amount))
+            {
+                hash.Add(item);
+            }
+            
+            return KeyValuePair.Create(hash.ToHashCode(), ((IEnumerable<Output>)naiveSet, loss + CalculateCost(naiveSet)));
         }
 
         private IEnumerable<Output> GetFilteredDenominations(IEnumerable<ulong> inputs)
