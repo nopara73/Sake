@@ -229,46 +229,11 @@ namespace Sake
             var naiveDecomp = CreateNaiveDecomposition(denoms, availableVsize, myInputSum, maxNumberOfOutputsAllowed);
             setCandidates.Add(naiveDecomp.Key, naiveDecomp.Value);
 
-
             // Create many decompositions for optimization.
-            var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => x <= myInputSum).Select(x => (long)x).ToArray();
-            
-            if (maxNumberOfOutputsAllowed > 1)
+            var changelessDecomps = CreateChangelessDecompositions(denoms, availableVsize, myInputSum, maxNumberOfOutputsAllowed);
+            foreach(var decomp in changelessDecomps)
             {
-                foreach (var (sum, count, decomp) in Decomposer.Decompose(
-                    target: (long)myInputSum,
-                    tolerance: MinAllowedOutputAmount + ChangeFee,
-                    maxCount: maxNumberOfOutputsAllowed,
-                    stdDenoms: stdDenoms))
-                {
-                    var currentSet = Decomposer.ToRealValuesArray(
-                                            decomp,
-                                            count,
-                                            stdDenoms).Select(Money.Satoshis).ToList();
-
-                    // Translate back to denominations.
-                    List<Output> finalDenoms = new();
-                    foreach (var outputPlusFee in currentSet)
-                    {
-                        finalDenoms.Add(denoms.First(d => d.EffectiveCost == outputPlusFee));
-                    }
-
-                    // The decomposer won't take vsize into account for different script types, checking it back here if too much, disregard the decomposition.
-                    var totalVSize = finalDenoms.Sum(d => d.ScriptType.EstimateOutputVsize());
-                    if (totalVSize > availableVsize)
-                    {
-                        continue;
-                    }
-
-                    HashCode hash = new();
-                    foreach (var item in finalDenoms.OrderBy(x => x.Amount))
-                    {
-                        hash.Add(item);
-                    }
-
-                    var deficit = (myInputSum - (ulong)finalDenoms.Sum(d => d.EffectiveCost)) + CalculateCost(finalDenoms);
-                    setCandidates.TryAdd(hash.ToHashCode(), (finalDenoms, deficit));
-                }
+                setCandidates.TryAdd(decomp.Key, decomp.Value);
             }
 
             var denomHashSet = denoms.ToHashSet();
@@ -326,6 +291,53 @@ namespace Sake
             Outputs.AddRange(finalCandidate);
 
             return finalCandidate;
+        }
+
+        private IDictionary<int, (IEnumerable<Output> Decomp, Money Cost)> CreateChangelessDecompositions(IEnumerable<Output> denoms, int availableVsize, Money myInputSum, int maxNumberOfOutputsAllowed)
+        {
+            var setCandidates = new Dictionary<int, (IEnumerable<Output> Decomp, Money Cost)>();
+
+            var stdDenoms = denoms.Select(x => x.EffectiveCost.Satoshi).Where(x => x <= myInputSum).Select(x => x).ToArray();
+
+            if (maxNumberOfOutputsAllowed > 1)
+            {
+                foreach (var (sum, count, decomp) in Decomposer.Decompose(
+                    target: (long)myInputSum,
+                    tolerance: MinAllowedOutputAmount + ChangeFee,
+                    maxCount: maxNumberOfOutputsAllowed,
+                    stdDenoms: stdDenoms))
+                {
+                    var currentSet = Decomposer.ToRealValuesArray(
+                                            decomp,
+                                            count,
+                                            stdDenoms).Select(Money.Satoshis).ToList();
+
+                    // Translate back to denominations.
+                    List<Output> finalDenoms = new();
+                    foreach (var outputPlusFee in currentSet)
+                    {
+                        finalDenoms.Add(denoms.First(d => d.EffectiveCost == outputPlusFee));
+                    }
+
+                    // The decomposer won't take vsize into account for different script types, checking it back here if too much, disregard the decomposition.
+                    var totalVSize = finalDenoms.Sum(d => d.ScriptType.EstimateOutputVsize());
+                    if (totalVSize > availableVsize)
+                    {
+                        continue;
+                    }
+
+                    HashCode hash = new();
+                    foreach (var item in finalDenoms.OrderBy(x => x.Amount))
+                    {
+                        hash.Add(item);
+                    }
+
+                    var deficit = (myInputSum - (ulong)finalDenoms.Sum(d => d.EffectiveCost)) + CalculateCost(finalDenoms);
+                    setCandidates.TryAdd(hash.ToHashCode(), (finalDenoms, deficit));
+                }
+            }
+
+            return setCandidates;
         }
 
         private KeyValuePair<int, (IEnumerable<Output> Decomp, Money Cost)> CreateNaiveDecomposition(IEnumerable<Output> denoms, int availableVsize, Money myInputSum, int maxNumberOfOutputsAllowed)
