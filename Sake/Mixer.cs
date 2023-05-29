@@ -198,10 +198,10 @@ namespace Sake
             for (int i = 0; i < inputArray.Length; i++)
             {
                 var currentUser = inputArray[i];
-                
+
                 // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
                 var availableVsize = currentUser.Sum(input => maxVsizeCredentialValue - input.ScriptType.EstimateInputVsize());
-                
+
                 var others = new List<Input>();
                 for (int j = 0; j < inputArray.Length; j++)
                 {
@@ -231,7 +231,7 @@ namespace Sake
 
             // Create many decompositions for optimization.
             var changelessDecomps = CreateChangelessDecompositions(denoms, availableVsize, myInputSum, maxNumberOfOutputsAllowed);
-            foreach(var decomp in changelessDecomps)
+            foreach (var decomp in changelessDecomps)
             {
                 setCandidates.TryAdd(decomp.Key, decomp.Value);
             }
@@ -242,22 +242,42 @@ namespace Sake
 
             // If there are changeless candidates, don't even consider ones with change.
             var changelessCandidates = preCandidates.Where(x => x.Decomp.All(y => denomHashSet.Contains(y))).ToList();
-            if (changelessCandidates.Any())
+            var changeAvoided = changelessCandidates.Any();
+            if (changeAvoided)
             {
                 preCandidates = changelessCandidates;
             }
             preCandidates.Shuffle();
 
             var orderedCandidates = preCandidates
-                .OrderBy(x => x.Decomp.Sum(y => denomHashSet.Contains(y) ? Money.Zero : y.Amount)) // Prefer lower change.
+                .OrderBy(x => x.Decomp.Sum(y => denomHashSet.Contains(y) ? Money.Zero : y.Amount)) // Less change is better.
                 .ThenBy(x => x.Cost) // Less cost is better.
                 .ThenBy(x => x.Decomp.Any(d => d.ScriptType == ScriptType.Taproot) && x.Decomp.Any(d => d.ScriptType == ScriptType.P2WPKH) ? 0 : 1) // Prefer mixed scripts types.
                 .Select(x => x).ToList();
 
-            // We want to introduce randomity between the best selections.
-            var bestCandidateCost = orderedCandidates.First().Cost;
-            var costTolerance = Money.Coins(bestCandidateCost.ToUnit(MoneyUnit.BTC) * 1.2m);
-            var finalCandidates = orderedCandidates.Where(x => x.Cost <= costTolerance).ToArray();
+            // We want to introduce randomness between the best selections.
+            // If we successfully avoided change, then what matters is cost,
+            // if we didn't then cost calculation is irrelevant, because the size of change is more costly.
+            (IEnumerable<Output> Decomp, Money Cost)[] finalCandidates;
+            if (changeAvoided)
+            {
+                var bestCandidateCost = orderedCandidates.First().Cost;
+                var costTolerance = Money.Coins(bestCandidateCost.ToUnit(MoneyUnit.BTC) * 1.2m);
+                finalCandidates = orderedCandidates.Where(x => x.Cost <= costTolerance).ToArray();
+            }
+            else
+            {
+                // Change can only be max between: 100.000 satoshis, 10% of the inputs sum or 20% more than the best candidate change
+                var bestCandidateChange = FindChange(orderedCandidates.First().Decomp, denomHashSet);
+                var changeTolerance = Money.Coins(
+                    Math.Max(
+                        Math.Max(
+                            myInputSum.ToUnit(MoneyUnit.BTC) * 0.1m,
+                            bestCandidateChange.ToUnit(MoneyUnit.BTC) * 1.2m),
+                        Money.Satoshis(100000).ToUnit(MoneyUnit.BTC)));
+
+                finalCandidates = orderedCandidates.Where(x => FindChange(x.Decomp, denomHashSet) <= changeTolerance).ToArray();
+            }
 
             // We want to make sure our random selection is not between similar decompositions.
             // Different largest elements result in very different decompositions.
@@ -291,6 +311,11 @@ namespace Sake
             Outputs.AddRange(finalCandidate);
 
             return finalCandidate;
+        }
+
+        private static Money FindChange(IEnumerable<Output> decomposition, HashSet<Output> denomHashSet)
+        {
+            return decomposition.Sum(x => denomHashSet.Contains(x) ? Money.Zero : x.Amount);
         }
 
         private IDictionary<int, (IEnumerable<Output> Decomp, Money Cost)> CreateChangelessDecompositions(IEnumerable<Output> denoms, int availableVsize, Money myInputSum, int maxNumberOfOutputsAllowed)
@@ -400,7 +425,7 @@ namespace Sake
             {
                 hash.Add(item);
             }
-            
+
             return KeyValuePair.Create(hash.ToHashCode(), ((IEnumerable<Output>)naiveSet, loss + CalculateCost(naiveSet)));
         }
 
@@ -494,7 +519,7 @@ namespace Sake
         {
             return GetNextScriptType(IsTaprootAllowed, Random);
         }
-        
+
         public static ScriptType GetNextScriptType(bool isTaprootAllowed, Random random)
         {
             if (!isTaprootAllowed)
