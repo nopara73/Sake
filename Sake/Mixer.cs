@@ -361,7 +361,7 @@ namespace Sake
                     var denom = denoms.Where(x => x.EffectiveCost <= remaining && x.EffectiveCost >= (remaining / 3)).RandomElement(Random)
                         ?? denoms.FirstOrDefault(x => x.EffectiveCost <= remaining);
 
-                    // We can only let this go forward if at least 2 output can be added (denom + potential change)
+                    // We can only let this go forward if at least 2 outputs can be added (denom + potential change)
                     if (denom is null || remaining < MinAllowedOutputAmount + ChangeFee || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
                     {
                         break;
