@@ -26,7 +26,7 @@ public static class Display
 	    Console.WriteLine($"Total leftover:\t\t{results.Average(r => r.TotalLeftover):0.##}");
 	    Console.WriteLine($"Median leftover:\t{results.Where(r => r.MedianLeftover.HasValue).Average(r => r.MedianLeftover!.Value):0.##}");
 	    Console.WriteLine($"Largest leftover:\t{results.Average(r => r.LargestLeftover):0.##}");
-	    Console.WriteLine($"Taproot/bech32 ratio:\t\t{results.Average(r => r.TaprootCount):0.##}/{results.Average(r => r.Bech32Count):0.##}");
+	    Console.WriteLine($"Taproot/bech32 ratio:\t{results.Average(r => r.TaprootCount):0.##}/{results.Average(r => r.Bech32Count):0.##}");
 	}
 
 }
