@@ -218,6 +218,7 @@ namespace Sake
         /// <param name="availableVsize">Calculated totalVsize that we can use for the outputs..</param>
         public IEnumerable<Output> Decompose(IEnumerable<Money> myInputsParam, IEnumerable<Output> denoms, int availableVsize)
         {
+            //myInputsParam = new[] { Money.Satoshis(6561) };
             var myInputs = myInputsParam.ToArray();
             var myInputSum = myInputs.Sum();
             var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
