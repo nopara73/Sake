@@ -4,7 +4,7 @@ using WalletWasabi.Extensions;
 
 var results = new List<SimulationResult>();
 
-for (int i = 0; i < 10; i++)
+for (int i = 0; i < 100; i++)
 {
     var inputCount = 218;
     var userCount = 42;
