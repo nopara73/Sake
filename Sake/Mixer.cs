@@ -197,7 +197,7 @@ namespace Sake
 
             for (int i = 0; i < inputArray.Length; i++)
             {
-                var currentUser = inputArray[i];
+                var currentUser = new[] { new Input(Money.Satoshis(6561), ScriptType.Taproot, FeeRate) };
 
                 // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
                 var availableVsize = currentUser.Sum(input => maxVsizeCredentialValue - input.ScriptType.EstimateInputVsize());
@@ -218,7 +218,6 @@ namespace Sake
         /// <param name="availableVsize">Calculated totalVsize that we can use for the outputs..</param>
         public IEnumerable<Output> Decompose(IEnumerable<Money> myInputsParam, IEnumerable<Output> denoms, int availableVsize)
         {
-            myInputsParam = new[] { Money.Satoshis(6561) };
             var myInputs = myInputsParam.ToArray();
             var myInputSum = myInputs.Sum();
             var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
