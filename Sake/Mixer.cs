@@ -221,7 +221,7 @@ namespace Sake
             var myInputs = myInputsParam.ToArray();
             var myInputSum = myInputs.Sum();
             var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
-            var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 8); // The absolute max possible with the smallest script type.
+            var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 10); // The absolute max possible with the smallest script type.
 
             var setCandidates = new Dictionary<int, (IEnumerable<Output> Decomp, Money Cost)>();
 
@@ -292,7 +292,7 @@ namespace Sake
             var finalCandidate = finalCandidates.Where(x => x.Decomp.First() == largestAmount).RandomElement(Random).Decomp;
 
             // Sanity check
-             var totalOutputAmount = Money.Satoshis(finalCandidate.Sum(x => x.EffectiveCost));
+            var totalOutputAmount = Money.Satoshis(finalCandidate.Sum(x => x.EffectiveCost));
             if (totalOutputAmount > myInputSum)
             {
                 throw new InvalidOperationException("The decomposer is creating money. Aborting.");
@@ -336,7 +336,7 @@ namespace Sake
                 foreach (var (sum, count, decomp) in Decomposer.Decompose(
                     target: (long)myInputSum,
                     tolerance: MinAllowedOutputAmount + ChangeFee,
-                    maxCount: maxNumberOfOutputsAllowed,
+                    maxCount: Math.Min(maxNumberOfOutputsAllowed, 8), // Decomposer doesn't do more than 8.
                     stdDenoms: stdDenoms))
                 {
                     var currentSet = Decomposer.ToRealValuesArray(
