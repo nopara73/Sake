@@ -200,7 +200,7 @@ namespace Sake
 
             for (int i = 0; i < inputArray.Length; i++)
             {
-                var currentUser = inputArray[i];
+                var currentUser = new[] { new Input(Money.Satoshis(6561), ScriptType.Taproot, FeeRate) };
 
                 // Calculated totalVsize that we can use. https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Client/AliceClient.cs#L157
                 var availableVsize = currentUser.Sum(input => maxVsizeCredentialValue - input.ScriptType.EstimateInputVsize());
