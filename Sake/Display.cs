@@ -12,7 +12,7 @@ public static class Display
 	    Console.WriteLine($"Number of users:\t{results.Median(r => r.UserCount):0.##}");
 	    Console.WriteLine($"Number of inputs:\t{results.Median(r => r.InputCount):0.##}");
 	    Console.WriteLine($"Number of outputs:\t{results.Median(r => r.OutputCount):0.##}");
-	    Console.WriteLine($"Number of changes:\t{results.Median(r => r.ChangeCount):0.##}");
+	    Console.WriteLine($"Number of changes:\t{results.Average(r => r.ChangeCount):0.##}");
 	    Console.WriteLine($"Total in:\t\t{(decimal)(results.Median(r => (double)r.InputAmount) ?? 0) / 100000000m} BTC");
 	    Console.WriteLine($"Fee paid for inputs:\t{(decimal)(results.Median(r => (double)r.FeeInputs) ?? 0) / 100000000m} BTC");
 	    Console.WriteLine($"Fee paid for outputs:\t{(decimal)(results.Median(r => (double)r.FeeOutputs) ?? 0) / 100000000m} BTC");
