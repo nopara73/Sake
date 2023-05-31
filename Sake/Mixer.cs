@@ -361,14 +361,8 @@ namespace Sake
                         continue;
                     }
 
-                    HashCode hash = new();
-                    foreach (var item in finalDenoms.OrderBy(x => x.Amount))
-                    {
-                        hash.Add(item);
-                    }
-
                     var deficit = (myInputSum - (ulong)finalDenoms.Sum(d => d.EffectiveCost)) + CalculateCost(finalDenoms);
-                    setCandidates.TryAdd(hash.ToHashCode(), (finalDenoms, deficit));
+                    setCandidates.TryAdd(CalculateHash(finalDenoms), (finalDenoms, deficit));
                 }
             }
 
@@ -425,14 +419,8 @@ namespace Sake
                     currentSet.Add(change);
                 }
 
-                HashCode h = new();
-                foreach (var item in currentSet.OrderBy(x => x.Amount))
-                {
-                    h.Add(item);
-                }
-
                 setCandidates.TryAdd(
-                    h.ToHashCode(), // Create hash to ensure uniqueness.
+                    CalculateHash(currentSet), // Create hash to ensure uniqueness.
                     (currentSet, loss + CalculateCost(currentSet)));
             }
 
@@ -494,13 +482,7 @@ namespace Sake
                 naiveSet.Add(change);
             }
 
-            HashCode hash = new();
-            foreach (var item in naiveSet.OrderBy(x => x.Amount))
-            {
-                hash.Add(item);
-            }
-
-            return KeyValuePair.Create(hash.ToHashCode(), ((IEnumerable<Output>)naiveSet, loss + CalculateCost(naiveSet)));
+            return KeyValuePair.Create(CalculateHash(naiveSet), ((IEnumerable<Output>)naiveSet, loss + CalculateCost(naiveSet)));
         }
 
         private IEnumerable<Output> GetFilteredDenominations(IEnumerable<ulong> inputs)
@@ -602,6 +584,16 @@ namespace Sake
             }
 
             return random.NextDouble() < 0.5 ? ScriptType.P2WPKH : ScriptType.Taproot;
+        }
+
+        private int CalculateHash(IEnumerable<Output> outputs)
+        {
+            HashCode hash = new();
+            foreach (var item in outputs.OrderBy(x => x.EffectiveCost))
+            {
+                hash.Add(item.Amount);
+            }
+            return hash.ToHashCode();
         }
     }
 }
