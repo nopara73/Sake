@@ -25,10 +25,13 @@ namespace Sake
         {
             FeeRate = feeRate;
             IsTaprootAllowed = isTaprootAllowed;
-            MinAllowedOutputAmount = minAllowedOutputAmount;
+            var minEconomicalOutput = FeeRate.GetFee(
+                Math.Max(
+                    ScriptType.P2WPKH.EstimateInputVsize() + ScriptType.P2WPKH.EstimateOutputVsize(),
+                    ScriptType.Taproot.EstimateInputVsize() + ScriptType.Taproot.EstimateOutputVsize()));
+            MinAllowedOutputAmount = Math.Max(3 * minEconomicalOutput, minAllowedOutputAmount);
             MaxAllowedOutputAmount = maxAllowedOutputAmount;
             Random = random ?? Random.Shared;
-
 
             // Create many standard denominations.
             Denominations = CreateDenominations();
@@ -297,7 +300,7 @@ namespace Sake
             {
                 throw new InvalidOperationException("The decomposer is creating money. Aborting.");
             }
-            if (totalOutputAmount + MinAllowedOutputAmount + ChangeFee < myInputSum)
+            if (totalOutputAmount + MinAllowedOutputAmount < myInputSum)
             {
                 throw new InvalidOperationException("The decomposer is losing money. Aborting.");
             }
@@ -309,7 +312,7 @@ namespace Sake
             }
 
             var leftover = myInputSum - totalOutputAmount;
-            if (leftover > MinAllowedOutputAmount + FeeRate.GetFee(NBitcoinExtensions.P2trOutputVirtualSize))
+            if (leftover > MinAllowedOutputAmount)
             {
                 throw new NotSupportedException($"Leftover too large. Aborting to avoid money loss: {leftover}");
             }
@@ -335,7 +338,7 @@ namespace Sake
             {
                 foreach (var (sum, count, decomp) in Decomposer.Decompose(
                     target: (long)myInputSum,
-                    tolerance: MinAllowedOutputAmount + ChangeFee,
+                    tolerance: MinAllowedOutputAmount,
                     maxCount: Math.Min(maxNumberOfOutputsAllowed, 8), // Decomposer doesn't do more than 8.
                     stdDenoms: stdDenoms))
                 {
@@ -387,7 +390,7 @@ namespace Sake
                         ?? denoms.FirstOrDefault(x => x.EffectiveCost <= remaining);
 
                     // We can only let this go forward if at least 2 outputs can be added (denom + potential change)
-                    if (denom is null || remaining < MinAllowedOutputAmount + ChangeFee || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
+                    if (denom is null || remaining < MinAllowedOutputAmount || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
                     {
                         break;
                     }
@@ -404,7 +407,7 @@ namespace Sake
                 }
 
                 var loss = Money.Zero;
-                if (remaining >= MinAllowedOutputAmount + ChangeFee)
+                if (remaining >= MinAllowedOutputAmount)
                 {
                     var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
                     currentSet.Add(change);
@@ -448,7 +451,7 @@ namespace Sake
                 while (denom.EffectiveCost <= remaining)
                 {
                     // We can only let this go forward if at least 2 output can be added (denom + potential change)
-                    if (remaining < MinAllowedOutputAmount + ChangeFee || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
+                    if (remaining < MinAllowedOutputAmount || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
                     {
                         end = true;
                         break;
@@ -473,7 +476,7 @@ namespace Sake
             }
 
             var loss = Money.Zero;
-            if (remaining >= MinAllowedOutputAmount + ChangeFee)
+            if (remaining >= MinAllowedOutputAmount)
             {
                 var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
                 naiveSet.Add(change);
@@ -556,7 +559,7 @@ namespace Sake
 
             foreach (var denom in denominations)
             {
-                if (denom.Amount < MinAllowedOutputAmount || remaining < MinAllowedOutputAmount + ChangeFee)
+                if (denom.Amount < MinAllowedOutputAmount || remaining < MinAllowedOutputAmount)
                 {
                     break;
                 }
@@ -568,7 +571,7 @@ namespace Sake
                 }
             }
 
-            if (remaining >= MinAllowedOutputAmount + ChangeFee)
+            if (remaining >= MinAllowedOutputAmount)
             {
                 var changeOutput = Output.FromAmount(remaining, ScriptType.P2WPKH, FeeRate);
                 yield return changeOutput;
