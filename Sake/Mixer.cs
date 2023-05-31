@@ -15,6 +15,8 @@ namespace Sake
 {
     internal class Mixer
     {
+        
+        private const decimal MaxOutputLossInFeePercentage = 0.1m;
 
         /// <param name="feeRate">Bitcoin network fee rate the coinjoin is targeting.</param>
         /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
@@ -38,7 +40,7 @@ namespace Sake
         public ScriptType ChangeScriptType { get; }
         public Money ChangeFee => FeeRate.GetFee(ChangeScriptType.EstimateOutputVsize());
 
-        public Money MinAllowedOutputAmount { get; }
+        public Money MinAllowedOutputAmount { get; set; }
         public Money MaxAllowedOutputAmount { get; }
         private Random Random { get; }
 
@@ -184,7 +186,10 @@ namespace Sake
             var allInputsEffectiveValue = inputArray.SelectMany(x => x).Select(x => (ulong)x.EffectiveValue.Satoshi).ToArray();
 
             var filteredDenominations = GetFilteredDenominations(allInputsEffectiveValue);
-
+            
+            // Hack
+            MinAllowedOutputAmount = filteredDenominations.Min(x => x.Amount);
+            
             var totalInputCount = allInputsEffectiveValue.Length;
 
             // This calculation is coming from here: https://github.com/zkSNACKs/WalletWasabi/blob/8b3fb65b/WalletWasabi/WabiSabi/Backend/Rounds/RoundParameters.cs#L48
@@ -404,7 +409,7 @@ namespace Sake
                 }
 
                 var loss = Money.Zero;
-                if (remaining >= MinAllowedOutputAmount + ChangeFee)
+                if (remaining >= MinAllowedOutputAmount)
                 {
                     var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
                     currentSet.Add(change);
@@ -543,7 +548,12 @@ namespace Sake
                 }
                 currentLength--;
             }
-
+            
+            // Filter out denominations that will cost too much in fees to remix/spend.
+            var biggestInputVSize = Math.Max(ScriptType.P2WPKH.EstimateInputVsize(), ScriptType.Taproot.EstimateInputVsize());
+            var biggestOutputVSize = Math.Max(ScriptType.P2WPKH.EstimateInputVsize(), ScriptType.Taproot.EstimateInputVsize());
+            lessDenoms = lessDenoms.Where(x => x.Amount.ToUnit(MoneyUnit.BTC) * MaxOutputLossInFeePercentage >= FeeRate.GetFee(biggestOutputVSize).ToUnit(MoneyUnit.BTC) + FeeRate.GetFee(biggestInputVSize).ToUnit(MoneyUnit.BTC)).ToList();
+            Console.WriteLine($"Smallest denom: {lessDenoms.Min(x => x.Amount)}");
             return lessDenoms;
         }
 

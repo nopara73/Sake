@@ -4,7 +4,7 @@ using WalletWasabi.Extensions;
 
 var results = new List<SimulationResult>();
 
-for (int i = 0; i < 100; i++)
+for (int i = 0; i < 200; i++)
 {
     var inputCount = 218;
     var userCount = 42;
@@ -12,7 +12,7 @@ for (int i = 0; i < 100; i++)
 
     var min = Money.Satoshis(5000m);
     var max = Money.Coins(43000m);
-    var feeRate = new FeeRate(10m);
+    var feeRate = new FeeRate(200m);
     var random = new Random();
 
     var maxInputCost = Money.Satoshis(Math.Max(NBitcoinExtensions.P2wpkhInputVirtualSize, NBitcoinExtensions.P2trInputVirtualSize) * feeRate.SatoshiPerByte);
