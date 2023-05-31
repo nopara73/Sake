@@ -221,7 +221,7 @@ namespace Sake
             var myInputs = myInputsParam.ToArray();
             var myInputSum = myInputs.Sum();
             var smallestScriptType = Math.Min(ScriptType.P2WPKH.EstimateOutputVsize(), ScriptType.Taproot.EstimateOutputVsize());
-            var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 8); // The absolute max possible with the smallest script type.
+            var maxNumberOfOutputsAllowed = Math.Min(availableVsize / smallestScriptType, 10); // The absolute max possible with the smallest script type.
 
             var setCandidates = new Dictionary<int, (IEnumerable<Output> Decomp, Money Cost)>();
 
@@ -292,7 +292,7 @@ namespace Sake
             var finalCandidate = finalCandidates.Where(x => x.Decomp.First() == largestAmount).RandomElement(Random).Decomp;
 
             // Sanity check
-             var totalOutputAmount = Money.Satoshis(finalCandidate.Sum(x => x.EffectiveCost));
+            var totalOutputAmount = Money.Satoshis(finalCandidate.Sum(x => x.EffectiveCost));
             if (totalOutputAmount > myInputSum)
             {
                 throw new InvalidOperationException("The decomposer is creating money. Aborting.");
@@ -336,7 +336,7 @@ namespace Sake
                 foreach (var (sum, count, decomp) in Decomposer.Decompose(
                     target: (long)myInputSum,
                     tolerance: MinAllowedOutputAmount + ChangeFee,
-                    maxCount: maxNumberOfOutputsAllowed,
+                    maxCount: Math.Min(maxNumberOfOutputsAllowed, 8), // Decomposer doesn't do more than 8.
                     stdDenoms: stdDenoms))
                 {
                     var currentSet = Decomposer.ToRealValuesArray(
@@ -358,14 +358,8 @@ namespace Sake
                         continue;
                     }
 
-                    HashCode hash = new();
-                    foreach (var item in finalDenoms.OrderBy(x => x.Amount))
-                    {
-                        hash.Add(item);
-                    }
-
                     var deficit = (myInputSum - (ulong)finalDenoms.Sum(d => d.EffectiveCost)) + CalculateCost(finalDenoms);
-                    setCandidates.TryAdd(hash.ToHashCode(), (finalDenoms, deficit));
+                    setCandidates.TryAdd(CalculateHash(finalDenoms), (finalDenoms, deficit));
                 }
             }
 
@@ -422,14 +416,8 @@ namespace Sake
                     currentSet.Add(change);
                 }
 
-                HashCode h = new();
-                foreach (var item in currentSet.OrderBy(x => x.Amount))
-                {
-                    h.Add(item);
-                }
-
                 setCandidates.TryAdd(
-                    h.ToHashCode(), // Create hash to ensure uniqueness.
+                    CalculateHash(currentSet), // Create hash to ensure uniqueness.
                     (currentSet, loss + CalculateCost(currentSet)));
             }
 
@@ -491,13 +479,7 @@ namespace Sake
                 naiveSet.Add(change);
             }
 
-            HashCode hash = new();
-            foreach (var item in naiveSet.OrderBy(x => x.Amount))
-            {
-                hash.Add(item);
-            }
-
-            return KeyValuePair.Create(hash.ToHashCode(), ((IEnumerable<Output>)naiveSet, loss + CalculateCost(naiveSet)));
+            return KeyValuePair.Create(CalculateHash(naiveSet), ((IEnumerable<Output>)naiveSet, loss + CalculateCost(naiveSet)));
         }
 
         private IEnumerable<Output> GetFilteredDenominations(IEnumerable<ulong> inputs)
@@ -599,6 +581,16 @@ namespace Sake
             }
 
             return random.NextDouble() < 0.5 ? ScriptType.P2WPKH : ScriptType.Taproot;
+        }
+
+        private int CalculateHash(IEnumerable<Output> outputs)
+        {
+            HashCode hash = new();
+            foreach (var item in outputs.OrderBy(x => x.EffectiveCost))
+            {
+                hash.Add(item.Amount);
+            }
+            return hash.ToHashCode();
         }
     }
 }
