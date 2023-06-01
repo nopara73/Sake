@@ -39,8 +39,6 @@ namespace Sake
         }
 
         public ScriptType ChangeScriptType { get; }
-        public Money ChangeFee => FeeRate.GetFee(ChangeScriptType.EstimateOutputVsize());
-
         public Money MinAllowedOutputAmount { get; }
         public Money MaxAllowedOutputAmount { get; }
         private Random Random { get; }
