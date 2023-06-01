@@ -2,10 +2,10 @@
 using Sake;
 using WalletWasabi.Extensions;
 
+var results = new List<SimulationResult>();
+
 for (int i = 0; i < 100; i++)
 {
-
-
     var inputCount = 218;
     var userCount = 42;
     var remixRatio = 0.96;
@@ -99,24 +99,28 @@ for (int i = 0; i < 100; i++)
         Console.ForegroundColor = ConsoleColor.Gray;
     }
 
-    Console.WriteLine();
-    Console.WriteLine($"Number of users:\t{userCount}");
-    Console.WriteLine($"Number of inputs:\t{inputCount}");
-    Console.WriteLine($"Number of outputs:\t{outputCount}");
-    Console.WriteLine($"Number of changes:\t{changeCount:0}");
-    Console.WriteLine($"Total in:\t\t{inputAmount / 100000000m} BTC");
-    Console.WriteLine($"Fee paid for inputs:\t{feeInputs / 100000000m} BTC");
-    Console.WriteLine($"Fee paid for outputs:\t{feeOutputs / 100000000m} BTC");
-    Console.WriteLine($"Total fee:\t\t{(feeInputs + feeOutputs) / 100000000m} BTC");
-    Console.WriteLine($"Size:\t\t\t{size} vbyte");
-    Console.WriteLine($"Fee rate:\t\t{calculatedFeeRate.ToString("f2")} sats/vbyte");
-    Console.WriteLine($"Average anonset:\t{Analyzer.AverageAnonsetGain(newRoundInputGroups, outputGroups):0.##}");
-    Console.WriteLine($"Average input anonset:\t{Analyzer.AverageAnonsetGain(newRoundInputGroups):0.##}");
-    Console.WriteLine($"Average output anonset:\t{Analyzer.AverageAnonsetGain(outputGroups):0.##}");
-    Console.WriteLine($"Blockspace efficiency:\t{Analyzer.BlockspaceEfficiency(newRoundInputGroups, outputGroups, size):0.##}");
-    Console.WriteLine($"Total leftover:\t\t{mixer.Leftovers.Sum():0}");
-    Console.WriteLine($"Median leftover:\t{mixer.Leftovers.Median():0}");
-    Console.WriteLine($"Largest leftover:\t{mixer.Leftovers.Max():0}");
-    Console.WriteLine($"Taproot/bech32 ratio:\t{mixer.Outputs.Where(o => o.ScriptType == ScriptType.Taproot).Count()}/{mixer.Outputs.Where(o => o.ScriptType == ScriptType.P2WPKH).Count()}");
-
+    var result = new SimulationResult(
+        userCount,
+        inputCount,
+        outputCount,
+        changeCount,
+        inputAmount,
+        feeInputs,
+        feeOutputs,
+        feeInputs + feeOutputs,
+        size,
+        calculatedFeeRate,
+        Analyzer.AverageAnonsetGain(newRoundInputGroups, outputGroups),
+        Analyzer.AverageAnonsetGain(newRoundInputGroups),
+        Analyzer.AverageAnonsetGain(outputGroups),
+        Analyzer.BlockspaceEfficiency(newRoundInputGroups, outputGroups, size),
+        mixer.Leftovers.Sum(),
+        mixer.Leftovers.Median(),
+        mixer.Leftovers.Max(),
+        mixer.Outputs.Count(o => o.ScriptType == ScriptType.Taproot),
+        mixer.Outputs.Count(o => o.ScriptType == ScriptType.P2WPKH)
+    );
+    results.Add(result);
+    Display.DisplayResults(new List<SimulationResult>() { result });
 }
+Display.DisplayResults(results);
