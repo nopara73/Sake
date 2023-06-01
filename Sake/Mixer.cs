@@ -29,7 +29,7 @@ namespace Sake
                 Math.Max(
                     ScriptType.P2WPKH.EstimateInputVsize() + ScriptType.P2WPKH.EstimateOutputVsize(),
                     ScriptType.Taproot.EstimateInputVsize() + ScriptType.Taproot.EstimateOutputVsize()));
-            MinAllowedOutputAmount = Math.Max(3 * minEconomicalOutput, minAllowedOutputAmount);
+            MinAllowedOutputAmount = Math.Max(minEconomicalOutput, minAllowedOutputAmount);
             MaxAllowedOutputAmount = maxAllowedOutputAmount;
             Random = random ?? Random.Shared;
 
