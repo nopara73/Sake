@@ -299,7 +299,7 @@ namespace Sake
             {
                 throw new InvalidOperationException("The decomposer is creating money. Aborting.");
             }
-            if (totalOutputAmount + MinAllowedOutputAmount < myInputSum)
+            if (totalOutputAmount + MinAllowedOutputAmount + ChangeFee < myInputSum)
             {
                 throw new InvalidOperationException("The decomposer is losing money. Aborting.");
             }
@@ -311,7 +311,7 @@ namespace Sake
             }
 
             var leftover = myInputSum - totalOutputAmount;
-            if (leftover > MinAllowedOutputAmount)
+            if (leftover > MinAllowedOutputAmount + ChangeFee)
             {
                 throw new NotSupportedException($"Leftover too large. Aborting to avoid money loss: {leftover}");
             }
@@ -337,7 +337,7 @@ namespace Sake
             {
                 foreach (var (sum, count, decomp) in Decomposer.Decompose(
                     target: (long)myInputSum,
-                    tolerance: MinAllowedOutputAmount,
+                    tolerance: MinAllowedOutputAmount + ChangeFee,
                     maxCount: Math.Min(maxNumberOfOutputsAllowed, 8), // Decomposer doesn't do more than 8.
                     stdDenoms: stdDenoms))
                 {
@@ -403,7 +403,7 @@ namespace Sake
                 }
 
                 var loss = Money.Zero;
-                if (remaining >= MinAllowedOutputAmount)
+                if (remaining >= MinAllowedOutputAmount + ChangeFee)
                 {
                     var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
                     currentSet.Add(change);
@@ -468,7 +468,7 @@ namespace Sake
             }
 
             var loss = Money.Zero;
-            if (remaining >= MinAllowedOutputAmount)
+            if (remaining >= MinAllowedOutputAmount + ChangeFee)
             {
                 var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
                 naiveSet.Add(change);
@@ -545,7 +545,7 @@ namespace Sake
 
             foreach (var denom in denominations)
             {
-                if (denom.Amount < MinAllowedOutputAmount || remaining < MinAllowedOutputAmount)
+                if (denom.Amount < MinAllowedOutputAmount || remaining < MinAllowedOutputAmount + ChangeFee)
                 {
                     break;
                 }
@@ -557,7 +557,7 @@ namespace Sake
                 }
             }
 
-            if (remaining >= MinAllowedOutputAmount)
+            if (remaining >= MinAllowedOutputAmount + ChangeFee)
             {
                 var changeOutput = Output.FromAmount(remaining, ScriptType.P2WPKH, FeeRate);
                 yield return changeOutput;
