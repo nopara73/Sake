@@ -39,6 +39,7 @@ namespace Sake
         }
 
         public ScriptType ChangeScriptType { get; }
+        public Money ChangeFee => FeeRate.GetFee(ChangeScriptType.EstimateOutputVsize());
         public Money MinAllowedOutputAmount { get; }
         public Money MaxAllowedOutputAmount { get; }
         private Random Random { get; }
@@ -381,8 +382,11 @@ namespace Sake
                     var denom = denoms.Where(x => x.EffectiveCost <= remaining && x.EffectiveCost >= (remaining / 3)).RandomElement(Random)
                         ?? denoms.FirstOrDefault(x => x.EffectiveCost <= remaining);
 
-                    // We can only let this go forward if at least 2 outputs can be added (denom + potential change)
-                    if (denom is null || remaining < MinAllowedOutputAmount || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
+                    // Continue only if there is enough remaining amount and size to create one output (+ change if change could potentially be created).
+                    // There can be change only if the remaining is at least the current denom effective cost + the minimum change effective cost.
+                    if (denom is null ||
+                        (remaining < denom.EffectiveCost + MinAllowedOutputAmount + ChangeFee && remainingVsize < denom.ScriptType.EstimateOutputVsize()) ||
+                        (remaining >= denom.EffectiveCost + MinAllowedOutputAmount + ChangeFee && remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize()))
                     {
                         break;
                     }
@@ -436,8 +440,10 @@ namespace Sake
                 bool end = false;
                 while (denom.EffectiveCost <= remaining)
                 {
-                    // We can only let this go forward if at least 2 output can be added (denom + potential change)
-                    if (remaining < MinAllowedOutputAmount || remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize())
+                    // Continue only if there is enough remaining amount and size to create one output + change (if change will potentially be created).
+                    // There can be change only if the remaining is at least the current denom effective cost + the minimum change effective cost.
+                    if ((remaining < denom.EffectiveCost + MinAllowedOutputAmount + ChangeFee && remainingVsize < denom.ScriptType.EstimateOutputVsize()) ||
+                        (remaining >= denom.EffectiveCost + MinAllowedOutputAmount + ChangeFee && remainingVsize < denom.ScriptType.EstimateOutputVsize() + ChangeScriptType.EstimateOutputVsize()))
                     {
                         end = true;
                         break;
