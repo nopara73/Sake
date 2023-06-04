@@ -25,17 +25,13 @@ namespace Sake
         {
             FeeRate = feeRate;
             IsTaprootAllowed = isTaprootAllowed;
-            var minEconomicalOutput = FeeRate.GetFee(
-                Math.Max(
-                    ScriptType.P2WPKH.EstimateInputVsize() + ScriptType.P2WPKH.EstimateOutputVsize(),
-                    ScriptType.Taproot.EstimateInputVsize() + ScriptType.Taproot.EstimateOutputVsize()));
-            MinAllowedOutputAmount = Math.Max(minEconomicalOutput, minAllowedOutputAmount);
+            MinAllowedOutputAmount = CalculateMinReasonableOutputAmount(minAllowedOutputAmount); // In WalletWasabi, this calculation happens outside of the AmountDecomposer.
             MaxAllowedOutputAmount = maxAllowedOutputAmount;
             Random = random ?? Random.Shared;
 
             // Create many standard denominations.
-            Denominations = CreateDenominations();
-            ChangeScriptType = GetNextScriptType();
+            Denominations = DenominationBuilder.CreateDenominations(MinAllowedOutputAmount, MaxAllowedOutputAmount, FeeRate, IsTaprootAllowed, Random);
+            ChangeScriptType = GetNextScriptType(IsTaprootAllowed, Random);
         }
 
         public ScriptType ChangeScriptType { get; }
@@ -51,129 +47,6 @@ namespace Sake
         public List<int> Leftovers { get; } = new();
         public IOrderedEnumerable<Output> Denominations { get; }
         public List<Output> Outputs { get; } = new();
-        private IOrderedEnumerable<Output> CreateDenominations()
-        {
-            ulong maxSatoshis = MaxAllowedOutputAmount;
-            ulong minSatoshis = MinAllowedOutputAmount;
-            var denominations = new HashSet<Output>();
-
-            Output CreateDenom(double sats)
-            {
-                var scriptType = GetNextScriptType();
-                return Output.FromDenomination(Money.Satoshis((ulong)sats), scriptType, FeeRate);
-            }
-
-            // Powers of 2
-            for (int i = 0; i < int.MaxValue; i++)
-            {
-                var denom = CreateDenom((ulong)Math.Pow(2, i));
-
-                if (denom.Amount < minSatoshis)
-                {
-                    continue;
-                }
-
-                if (denom.Amount > maxSatoshis)
-                {
-                    break;
-                }
-
-                denominations.Add(denom);
-            }
-
-            // Powers of 3
-            for (int i = 0; i < int.MaxValue; i++)
-            {
-                var denom = CreateDenom((ulong)Math.Pow(3, i));
-
-                if (denom.Amount < minSatoshis)
-                {
-                    continue;
-                }
-
-                if (denom.Amount > maxSatoshis)
-                {
-                    break;
-                }
-
-                denominations.Add(denom);
-            }
-
-            // Powers of 3 * 2
-            for (int i = 0; i < int.MaxValue; i++)
-            {
-                var denom = CreateDenom((ulong)Math.Pow(3, i) * 2);
-
-                if (denom.Amount < minSatoshis)
-                {
-                    continue;
-                }
-
-                if (denom.Amount > maxSatoshis)
-                {
-                    break;
-                }
-
-                denominations.Add(denom);
-            }
-
-            // Powers of 10 (1-2-5 series)
-            for (int i = 0; i < int.MaxValue; i++)
-            {
-                var denom = CreateDenom((ulong)Math.Pow(10, i));
-
-                if (denom.Amount < minSatoshis)
-                {
-                    continue;
-                }
-
-                if (denom.Amount > maxSatoshis)
-                {
-                    break;
-                }
-
-                denominations.Add(denom);
-            }
-
-            // Powers of 10 * 2 (1-2-5 series)
-            for (int i = 0; i < int.MaxValue; i++)
-            {
-                var denom = CreateDenom((ulong)Math.Pow(10, i) * 2);
-
-                if (denom.Amount < minSatoshis)
-                {
-                    continue;
-                }
-
-                if (denom.Amount > maxSatoshis)
-                {
-                    break;
-                }
-
-                denominations.Add(denom);
-            }
-
-            // Powers of 10 * 5 (1-2-5 series)
-            for (int i = 0; i < int.MaxValue; i++)
-            {
-                var denom = CreateDenom((ulong)Math.Pow(10, i) * 5);
-
-                if (denom.Amount < minSatoshis)
-                {
-                    continue;
-                }
-
-                if (denom.Amount > maxSatoshis)
-                {
-                    break;
-                }
-
-                denominations.Add(denom);
-            }
-
-            // Order by EffectiveCost. Greedy decomposer in breakdown should take highest cost value first. 
-            return denominations.OrderByDescending(x => x.Amount);
-        }
 
         /// <summary>
         /// Run a series of mix with different input group combinations. 
@@ -575,11 +448,6 @@ namespace Sake
             return outputCost + inputCost;
         }
 
-        private ScriptType GetNextScriptType()
-        {
-            return GetNextScriptType(IsTaprootAllowed, Random);
-        }
-
         public static ScriptType GetNextScriptType(bool isTaprootAllowed, Random random)
         {
             if (!isTaprootAllowed)
@@ -598,6 +466,17 @@ namespace Sake
                 hash.Add(item.Amount);
             }
             return hash.ToHashCode();
+        }
+
+        /// <returns>Min output amount that's economically reasonable to be registered with current network conditions.</returns>
+        /// <remarks>It won't be smaller than min allowed output amount.</remarks>
+        public Money CalculateMinReasonableOutputAmount(Money minAllowedOutputAmount)
+        {
+            var minEconomicalOutput = FeeRate.GetFee(
+                            Math.Max(
+                                ScriptType.P2WPKH.EstimateInputVsize() + ScriptType.P2WPKH.EstimateOutputVsize(),
+                                ScriptType.Taproot.EstimateInputVsize() + ScriptType.Taproot.EstimateOutputVsize()));
+            return Math.Max(minEconomicalOutput, minAllowedOutputAmount);
         }
     }
 }
