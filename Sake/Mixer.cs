@@ -19,8 +19,8 @@ namespace Sake
         /// <param name="feeRate">Bitcoin network fee rate the coinjoin is targeting.</param>
         /// <param name="minAllowedOutputAmount">Minimum output amount that's allowed to be registered.</param>
         /// <param name="maxAllowedOutputAmount">Miximum output amount that's allowed to be registered.</param>
-        /// <param name="inputSize">Size of an input.</param>
-        /// <param name="outputSize">Size of an output.</param>
+        /// <param name="allowedOutputTypes">Allouwed output scriot types.</param>
+        /// <param name="random">Random numbers generator.</param>
         public Mixer(FeeRate feeRate, Money minAllowedOutputAmount, Money maxAllowedOutputAmount, IEnumerable<ScriptType> allowedOutputTypes, Random? random = null)
         {
             FeeRate = feeRate;
