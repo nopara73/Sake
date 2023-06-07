@@ -10,7 +10,7 @@ namespace Sake
 
             Output CreateDenom(double sats)
             {
-                var scriptType = Mixer.GetNextScriptType(allowedOutputTypes, random);
+                var scriptType = allowedOutputTypes.RandomElement(random);
                 return Output.FromDenomination(Money.Satoshis((ulong)sats), scriptType, feeRate);
             }
 

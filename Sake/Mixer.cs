@@ -31,7 +31,7 @@ namespace Sake
 
             // Create many standard denominations.
             Denominations = DenominationBuilder.CreateDenominations(MinAllowedOutputAmount, MaxAllowedOutputAmount, FeeRate, AllowedOutputTypes, Random);
-            ChangeScriptType = GetNextScriptType(AllowedOutputTypes, Random);
+            ChangeScriptType = AllowedOutputTypes.RandomElement(Random);
         }
 
         public ScriptType ChangeScriptType { get; }
@@ -446,11 +446,6 @@ namespace Sake
             var inputCost = outputs.Sum(o => o.InputFee);
 
             return outputCost + inputCost;
-        }
-
-        public static ScriptType GetNextScriptType(IEnumerable<ScriptType> allowedOutputTypes, Random random)
-        {
-            return allowedOutputTypes.RandomElement(random);
         }
 
         private int CalculateHash(IEnumerable<Output> outputs)
