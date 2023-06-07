@@ -21,17 +21,17 @@ namespace Sake
         /// <param name="maxAllowedOutputAmount">Miximum output amount that's allowed to be registered.</param>
         /// <param name="inputSize">Size of an input.</param>
         /// <param name="outputSize">Size of an output.</param>
-        public Mixer(FeeRate feeRate, Money minAllowedOutputAmount, Money maxAllowedOutputAmount, bool isTaprootAllowed, Random? random = null)
+        public Mixer(FeeRate feeRate, Money minAllowedOutputAmount, Money maxAllowedOutputAmount, IEnumerable<ScriptType> allowedOutputTypes, Random? random = null)
         {
             FeeRate = feeRate;
-            IsTaprootAllowed = isTaprootAllowed;
+            AllowedOutputTypes = allowedOutputTypes;
             MinAllowedOutputAmount = CalculateMinReasonableOutputAmount(minAllowedOutputAmount); // In WalletWasabi, this calculation happens outside of the AmountDecomposer.
             MaxAllowedOutputAmount = maxAllowedOutputAmount;
             Random = random ?? Random.Shared;
 
             // Create many standard denominations.
-            Denominations = DenominationBuilder.CreateDenominations(MinAllowedOutputAmount, MaxAllowedOutputAmount, FeeRate, IsTaprootAllowed, Random);
-            ChangeScriptType = GetNextScriptType(IsTaprootAllowed, Random);
+            Denominations = DenominationBuilder.CreateDenominations(MinAllowedOutputAmount, MaxAllowedOutputAmount, FeeRate, AllowedOutputTypes, Random);
+            ChangeScriptType = GetNextScriptType(AllowedOutputTypes, Random);
         }
 
         public ScriptType ChangeScriptType { get; }
@@ -41,7 +41,7 @@ namespace Sake
         private Random Random { get; }
 
         public FeeRate FeeRate { get; }
-        public bool IsTaprootAllowed { get; }
+        public IEnumerable<ScriptType> AllowedOutputTypes { get; }
         public int InputSize { get; } = 69;
         public int OutputSize { get; } = 33;
         public List<int> Leftovers { get; } = new();
@@ -448,14 +448,9 @@ namespace Sake
             return outputCost + inputCost;
         }
 
-        public static ScriptType GetNextScriptType(bool isTaprootAllowed, Random random)
+        public static ScriptType GetNextScriptType(IEnumerable<ScriptType> allowedOutputTypes, Random random)
         {
-            if (!isTaprootAllowed)
-            {
-                return ScriptType.P2WPKH;
-            }
-
-            return random.NextDouble() < 0.5 ? ScriptType.P2WPKH : ScriptType.Taproot;
+            return allowedOutputTypes.RandomElement(random);
         }
 
         private int CalculateHash(IEnumerable<Output> outputs)

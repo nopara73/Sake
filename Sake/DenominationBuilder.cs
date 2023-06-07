@@ -4,13 +4,13 @@ namespace Sake
 {
     public static class DenominationBuilder
     {
-        public static IOrderedEnumerable<Output> CreateDenominations(Money minAllowedOutputAmount, Money maxAllowedOutputAmount, FeeRate feeRate, bool isTaprootAllowed, Random random)
+        public static IOrderedEnumerable<Output> CreateDenominations(Money minAllowedOutputAmount, Money maxAllowedOutputAmount, FeeRate feeRate, IEnumerable<ScriptType> allowedOutputTypes, Random random)
         {
             var denominations = new HashSet<Output>();
 
             Output CreateDenom(double sats)
             {
-                var scriptType = Mixer.GetNextScriptType(isTaprootAllowed, random);
+                var scriptType = Mixer.GetNextScriptType(allowedOutputTypes, random);
                 return Output.FromDenomination(Money.Satoshis((ulong)sats), scriptType, feeRate);
             }
 
