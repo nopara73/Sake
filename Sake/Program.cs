@@ -31,7 +31,7 @@ for (int i = 0; i < 100; i++)
         .RandomElements(inputCount)
         .Select(x => new Input(Money.Coins(x), allowedOutputTypes.RandomElement(random), feeRate));
     
-    var preGroups = preRandomAmounts.RandomGroups(userCount).Where(x => userGroupsPredicate(x.Sum(y => y.Amount)));
+    var preGroups = preRandomAmounts.RandomGroups(userCount).Where(x => userGroupsPredicate(x.Sum(y => y.EffectiveValue)));
     
     var preMix = preMixer.CompleteMix(preGroups);
 
@@ -52,7 +52,7 @@ for (int i = 0; i < 100; i++)
     
 
     var newRoundAmounts = randomAmounts.Concat(remixAmounts);
-    var newRoundInputGroups = newRoundAmounts.RandomGroups(userCount).Where(x => userGroupsPredicate(x.Sum(y => y.Amount))).ToArray();
+    var newRoundInputGroups = newRoundAmounts.RandomGroups(userCount).Where(x => userGroupsPredicate(x.Sum(y => y.EffectiveValue))).ToArray();
     var outputGroups = mixer.CompleteMix(newRoundInputGroups).Select(x => x.ToArray()).ToArray();
 
     if ((ulong)newRoundInputGroups.SelectMany(x => x).Sum(x => x.EffectiveValue) <= outputGroups.SelectMany(x => x).Sum())
