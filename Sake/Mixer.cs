@@ -85,6 +85,14 @@ namespace Sake
                         others.AddRange(inputArray[j]);
                     }
                 }
+                
+                // If my input sum is smaller than the smallest denomination, then participation in a coinjoin makes no sense.
+                if (filteredDenominations.Min(x => x.EffectiveCost) > currentUser.Select(x => x.EffectiveValue).Sum())
+                {
+                    throw new InvalidOperationException("Not enough coins registered to participate in the coinjoin.");
+                }
+
+                
                 yield return Decompose(currentUser.Select(x => x.EffectiveValue), filteredDenominations, availableVsize).Select(d => (ulong)d.Amount.Satoshi); ;
             }
         }
@@ -456,16 +464,38 @@ namespace Sake
             }
             return hash.ToHashCode();
         }
-
+        
+        private int MaxVsizeInputOutputPair => AllowedOutputTypes.Max(x => x.EstimateInputVsize() + x.EstimateOutputVsize());
+        private ScriptType MaxVsizeInputOutputPairScriptType => AllowedOutputTypes.MaxBy(x => x.EstimateInputVsize() + x.EstimateOutputVsize());
+        
         /// <returns>Min output amount that's economically reasonable to be registered with current network conditions.</returns>
         /// <remarks>It won't be smaller than min allowed output amount.</remarks>
-        public Money CalculateMinReasonableOutputAmount(Money minAllowedOutputAmount)
+        public Money CalculateMinReasonableOutputAmount(Money? minAllowedOutputAmount = null)
         {
-            var minEconomicalOutput = FeeRate.GetFee(
-                            Math.Max(
-                                ScriptType.P2WPKH.EstimateInputVsize() + ScriptType.P2WPKH.EstimateOutputVsize(),
-                                ScriptType.Taproot.EstimateInputVsize() + ScriptType.Taproot.EstimateOutputVsize()));
-            return Math.Max(minEconomicalOutput, minAllowedOutputAmount);
+            var minEconomicalOutput = FeeRate.GetFee(MaxVsizeInputOutputPair);
+            return Math.Max(minEconomicalOutput, MinAllowedOutputAmount ?? minAllowedOutputAmount);
         }
+
+        public Money CalculateSmallestReasonableEffectiveDenomination()
+            => CalculateSmallestReasonableEffectiveDenomination(CalculateMinReasonableOutputAmount(), MaxAllowedOutputAmount, FeeRate, MaxVsizeInputOutputPairScriptType);
+
+        /// <returns>Smallest effective denom that's larger than min reasonable output amount. </returns>
+        public Money CalculateSmallestReasonableEffectiveDenomination(Money minReasonableOutputAmount, Money maxAllowedOutputAmount, FeeRate feeRate, ScriptType maxVsizeInputOutputPairScriptType)
+        {
+            var smallestEffectiveDenom = DenominationBuilder.CreateDenominations(
+                    minReasonableOutputAmount,
+                    maxAllowedOutputAmount,
+                    feeRate,
+                    new List<ScriptType>() { maxVsizeInputOutputPairScriptType },
+                    Random)
+                .Min(x => x.EffectiveCost);
+
+            return smallestEffectiveDenom is null
+                ? throw new InvalidOperationException("Something's wrong with the denomination creation or with the parameters it got.")
+                : smallestEffectiveDenom;
+        }
+
+        /// <returns>Min: must be larger than the smallest economical denom. Max: max allowed in the round.</returns>
+        public (Money, Money) CalculateReasonableOutputAmountRange() => new(CalculateSmallestReasonableEffectiveDenomination(), MaxAllowedOutputAmount);
     }
 }
