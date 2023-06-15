@@ -487,7 +487,6 @@ namespace Sake
                     feeRate,
                     new List<ScriptType>() { maxVsizeInputOutputPairScriptType },
                     Random)
-                .Where(x => x.EffectiveAmount >= minReasonableOutputAmount)
                 .Min(x => x.EffectiveCost);
 
             return smallestEffectiveDenom is null
