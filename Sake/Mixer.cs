@@ -374,8 +374,7 @@ namespace Sake
             var secondLargestInput = inputs.OrderByDescending(x => x).Skip(1).First();
             IEnumerable<Output> demonsForBreakDown = Denominations
                 .Where(x => x.EffectiveCost <= secondLargestInput)
-                .OrderByDescending(x => x.Amount)
-                .ThenBy(x => x.EffectiveCost); // If the amount is the same, the cheaper to spend should be the first - so greedy will take that.
+                .OrderByDescending(x => x.EffectiveAmount); // If the amount is the same, the cheaper to spend should be the first - so greedy will take that.
 
             Dictionary<Output, uint> denoms = new();
             foreach (var input in inputs)
