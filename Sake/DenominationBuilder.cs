@@ -4,7 +4,7 @@ namespace Sake
 {
     public static class DenominationBuilder
     {
-        public static IOrderedEnumerable<Output> CreateDenominations(Money minAllowedOutputEffectiveCost, Money maxAllowedOutputAmount, FeeRate feeRate, IEnumerable<ScriptType> allowedOutputTypes, Random random)
+        public static IOrderedEnumerable<Output> CreateDenominations(Money minAllowedOutputAmount, Money maxAllowedOutputAmount, FeeRate feeRate, IEnumerable<ScriptType> allowedOutputTypes, Random random)
         {
             var denominations = new HashSet<Output>();
 
@@ -19,7 +19,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(2, i));
 
-                if (denom.EffectiveAmount < minAllowedOutputEffectiveCost)
+                if (denom.EffectiveAmount < minAllowedOutputAmount)
                 {
                     continue;
                 }
@@ -37,7 +37,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(3, i));
 
-                if (denom.EffectiveAmount < minAllowedOutputEffectiveCost)
+                if (denom.EffectiveAmount < minAllowedOutputAmount)
                 {
                     continue;
                 }
@@ -55,7 +55,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(3, i) * 2);
 
-                if (denom.EffectiveAmount < minAllowedOutputEffectiveCost)
+                if (denom.EffectiveAmount < minAllowedOutputAmount)
                 {
                     continue;
                 }
@@ -73,7 +73,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(10, i));
 
-                if (denom.EffectiveAmount < minAllowedOutputEffectiveCost)
+                if (denom.EffectiveAmount < minAllowedOutputAmount)
                 {
                     continue;
                 }
@@ -91,7 +91,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(10, i) * 2);
 
-                if (denom.EffectiveAmount < minAllowedOutputEffectiveCost)
+                if (denom.EffectiveAmount < minAllowedOutputAmount)
                 {
                     continue;
                 }
@@ -109,7 +109,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(10, i) * 5);
 
-                if (denom.EffectiveAmount < minAllowedOutputEffectiveCost)
+                if (denom.EffectiveAmount < minAllowedOutputAmount)
                 {
                     continue;
                 }
