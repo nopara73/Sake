@@ -19,7 +19,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(2, i));
 
-                if (denom.EffectiveAmount < minAllowedOutputAmount)
+                if (denom.Amount < minAllowedOutputAmount)
                 {
                     continue;
                 }
@@ -37,7 +37,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(3, i));
 
-                if (denom.EffectiveAmount < minAllowedOutputAmount)
+                if (denom.Amount < minAllowedOutputAmount)
                 {
                     continue;
                 }
@@ -55,7 +55,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(3, i) * 2);
 
-                if (denom.EffectiveAmount < minAllowedOutputAmount)
+                if (denom.Amount < minAllowedOutputAmount)
                 {
                     continue;
                 }
@@ -73,7 +73,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(10, i));
 
-                if (denom.EffectiveAmount < minAllowedOutputAmount)
+                if (denom.Amount < minAllowedOutputAmount)
                 {
                     continue;
                 }
@@ -91,7 +91,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(10, i) * 2);
 
-                if (denom.EffectiveAmount < minAllowedOutputAmount)
+                if (denom.Amount < minAllowedOutputAmount)
                 {
                     continue;
                 }
@@ -109,7 +109,7 @@ namespace Sake
             {
                 var denom = CreateDenom(Math.Pow(10, i) * 5);
 
-                if (denom.EffectiveAmount < minAllowedOutputAmount)
+                if (denom.Amount < minAllowedOutputAmount)
                 {
                     continue;
                 }

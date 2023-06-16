@@ -87,7 +87,7 @@ namespace Sake
                 }
                 
                 // If my input sum is smaller than the smallest denomination, then participation in a coinjoin makes no sense.
-                if (filteredDenominations.Min(x => x.EffectiveCost) > currentUser.Select(x => x.EffectiveValue).Sum())
+                if (MinAllowedOutputAmount + ChangeFee > currentUser.Select(x => x.EffectiveValue).Sum())
                 {
                     throw new InvalidOperationException("Not enough coins registered to participate in the coinjoin.");
                 }
@@ -487,7 +487,7 @@ namespace Sake
                     feeRate,
                     new List<ScriptType>() { maxVsizeInputOutputPairScriptType },
                     Random)
-                .Min(x => x.EffectiveCost);
+                .Min(x => x.Amount);
 
             return smallestEffectiveDenom is null
                 ? throw new InvalidOperationException("Something's wrong with the denomination creation or with the parameters it got.")

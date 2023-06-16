@@ -18,20 +18,19 @@ for (int i = 0; i < 100; i++)
 
     var maxInputCost = Money.Satoshis(Math.Max(NBitcoinExtensions.P2wpkhInputVirtualSize, NBitcoinExtensions.P2trInputVirtualSize) * feeRate.SatoshiPerByte);
     
-    var preMixer = new Mixer(feeRate, min, max, allowedOutputTypes, random); 
+    var preMixer = new Mixer(feeRate, min, max, allowedOutputTypes, random);
     var (minDenom, maxDenom) = preMixer.CalculateReasonableOutputAmountRange();
-    
-    Func<Money, bool> userGroupsPredicate = (sumOfEffectiveValue =>
-        sumOfEffectiveValue >= minDenom &&
-        sumOfEffectiveValue <= maxDenom);
-    
+    var maxInputSize = allowedOutputTypes.Max(x => x.EstimateInputVsize());
+
+    bool UserGroupsPredicate(Money sumOfEffectiveValue) => sumOfEffectiveValue >= minDenom + feeRate.GetFee(maxInputSize) && sumOfEffectiveValue <= maxDenom;
+
     // Don't select inputs that costs more to spend than their value. This is what happens in SelectCoinsForRound.
     var preRandomAmounts = Sample.Amounts
         .Where(x => Money.Coins(x) > maxInputCost)
         .RandomElements(inputCount)
         .Select(x => new Input(Money.Coins(x), allowedOutputTypes.RandomElement(random), feeRate));
     
-    var preGroups = preRandomAmounts.RandomGroups(userCount).Where(x => userGroupsPredicate(x.Sum(y => y.EffectiveValue)));
+    var preGroups = preRandomAmounts.RandomGroups(userCount).Where(x => UserGroupsPredicate(x.Sum(y => y.EffectiveValue)));
     
     var preMix = preMixer.CompleteMix(preGroups);
 
@@ -52,7 +51,7 @@ for (int i = 0; i < 100; i++)
     
 
     var newRoundAmounts = randomAmounts.Concat(remixAmounts);
-    var newRoundInputGroups = newRoundAmounts.RandomGroups(userCount).Where(x => userGroupsPredicate(x.Sum(y => y.EffectiveValue))).Select(x => x.ToList()).ToArray();
+    var newRoundInputGroups = newRoundAmounts.RandomGroups(userCount).Where(x => UserGroupsPredicate(x.Sum(y => y.EffectiveValue))).Select(x => x.ToList()).ToArray();
 
     // Make sure we have the correct number of inputs
     var diffInputNumber = inputCount - newRoundInputGroups.SelectMany(x => x).Count();
