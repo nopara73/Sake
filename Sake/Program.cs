@@ -56,9 +56,14 @@ for (int i = 0; i < 100; i++)
 
     // Make sure we have the correct number of inputs
     var diffInputNumber = inputCount - newRoundInputGroups.SelectMany(x => x).Count();
-    for (var j = 0; j < diffInputNumber; j++)
+    if (diffInputNumber > 0)
     {
-        newRoundInputGroups.MinBy(x => x.Count)!.Add(remixAmounts.RandomElement(random));
+        newRoundInputGroups = newRoundInputGroups.OrderBy(x => x.Count).ToArray();
+        var randomElements = remixAmounts.RandomElements(diffInputNumber).ToArray();
+        for (var j = 0; j < diffInputNumber; j++)
+        {
+            newRoundInputGroups[j % newRoundInputGroups.Length].Add(randomElements[j]);
+        }
     }
     
     var outputGroups = mixer.CompleteMix(newRoundInputGroups).Select(x => x.ToArray()).ToArray();
