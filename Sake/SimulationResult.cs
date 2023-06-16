@@ -4,6 +4,7 @@ public class SimulationResult
 {
     public int UserCount { get; }
     public int InputCount { get; }
+    public int DiffInputNumber { get; }
     public int OutputCount { get; }
     public int ChangeCount { get; }
     public ulong InputAmount { get; }
@@ -25,6 +26,7 @@ public class SimulationResult
     public SimulationResult(
         int userCount,
         int inputCount,
+        int diffInputNumber,
         int outputCount,
         int changeCount,
         ulong inputAmount,
@@ -49,6 +51,7 @@ public class SimulationResult
         OutputCount = outputCount;
         ChangeCount = changeCount;
         InputAmount = inputAmount;
+        DiffInputNumber = diffInputNumber;
         FeeInputs = feeInputs;
         FeeOutputs = feeOutputs;
         TotalFee = totalFee;
