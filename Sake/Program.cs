@@ -62,7 +62,7 @@ for (int i = 0; i < 100; i++)
         var randomElements = remixAmounts.RandomElements(diffInputNumber).ToArray();
         for (var j = 0; j < diffInputNumber; j++)
         {
-            newRoundInputGroups[j % newRoundInputGroups.Length].Add(randomElements[j]);
+            newRoundInputGroups[j % newRoundInputGroups.Length].Add(randomElements[j % randomElements.Length]);
         }
     }
     
