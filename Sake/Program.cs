@@ -28,7 +28,7 @@ for (int i = 0; i < 100; i++)
     var preMixer = new Mixer(feeRate, min, max, allowedOutputTypes, random);
 
     var preGroups = preMixer.RandomInputGroups(preRandomAmounts, userCount);
-    var preMix = preMixer.CompleteMix(preGroups);
+    var preMix = preMixer.CompleteMix(preGroups).ToArray();
 
     var remixCount = (int)(inputCount * remixRatio);
 
@@ -36,6 +36,16 @@ for (int i = 0; i < 100; i++)
         .Where(x => Money.Coins(x) > maxInputCost)
         .RandomElements(inputCount - remixCount)
         .Select(x => new Input(Money.Coins(x), allowedOutputTypes.RandomElement(random), feeRate));
+
+    var nbMissingOutputsForRemixRate = Math.Max(0, remixCount - preMix.SelectMany(x => x).Count(x => Money.Satoshis(x) > maxInputCost));
+
+    if (nbMissingOutputsForRemixRate > 0)
+    {
+        while (preMix.SelectMany(x => x).Count(x => Money.Satoshis(x) > maxInputCost) < remixCount)
+        {
+            preMix = preMix.Concat(preMix).ToArray();
+        }
+    }
 
     var remixAmounts = preMix.SelectMany(x => x)
         .Where(x => Money.Satoshis(x) > maxInputCost)
@@ -103,8 +113,9 @@ for (int i = 0; i < 100; i++)
     }
 
     var result = new SimulationResult(
-        userCount,
-        inputCount,
+        newRoundInputGroups.Length,
+        newRoundInputGroups.SelectMany(x => x).Count(),
+        nbMissingOutputsForRemixRate,
         outputCount,
         changeCount,
         inputAmount,

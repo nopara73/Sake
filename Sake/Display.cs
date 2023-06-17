@@ -11,6 +11,7 @@ public static class Display
 	    }
 	    Console.WriteLine($"Number of users:\t{results.Median(r => r.UserCount):0.##}");
 	    Console.WriteLine($"Number of inputs:\t{results.Median(r => r.InputCount):0.##}");
+	    Console.WriteLine($"Number of inputs added:\t{results.Median(r => r.InputAddedCount):0.##}");
 	    Console.WriteLine($"Number of outputs:\t{results.Median(r => r.OutputCount):0.##}");
 	    Console.WriteLine($"Number of changes:\t{results.Average(r => r.ChangeCount):0.##}");
 	    Console.WriteLine($"Total in:\t\t{(decimal)(results.Median(r => (double)r.InputAmount) ?? 0) / 100000000m} BTC");
