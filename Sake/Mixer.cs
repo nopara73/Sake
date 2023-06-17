@@ -23,24 +23,26 @@ namespace Sake
         /// <param name="random">Random numbers generator.</param>
         public Mixer(FeeRate feeRate, Money minAllowedOutputAmount, Money maxAllowedOutputAmount, IEnumerable<ScriptType> allowedOutputTypes, Random? random = null)
         {
-            FeeRate = feeRate;
+            MiningFeeRate = feeRate;
             AllowedOutputTypes = allowedOutputTypes;
             MinAllowedOutputAmount = CalculateMinReasonableOutputAmount(minAllowedOutputAmount); // In WalletWasabi, this calculation happens outside of the AmountDecomposer.
             MaxAllowedOutputAmount = maxAllowedOutputAmount;
             Random = random ?? Random.Shared;
 
             // Create many standard denominations.
-            Denominations = DenominationBuilder.CreateDenominations(MinAllowedOutputAmount, MaxAllowedOutputAmount, FeeRate, AllowedOutputTypes, Random);
+            Denominations = DenominationBuilder.CreateDenominations(MinAllowedOutputAmount, MaxAllowedOutputAmount, MiningFeeRate, AllowedOutputTypes, Random);
             ChangeScriptType = AllowedOutputTypes.RandomElement(Random);
         }
+        private int MaxVsizeInputOutputPair => AllowedOutputTypes.Max(x => x.EstimateInputVsize() + x.EstimateOutputVsize());
+        private ScriptType MaxVsizeInputOutputPairScriptType => AllowedOutputTypes.MaxBy(x => x.EstimateInputVsize() + x.EstimateOutputVsize());
 
         public ScriptType ChangeScriptType { get; }
-        public Money ChangeFee => FeeRate.GetFee(ChangeScriptType.EstimateOutputVsize());
+        public Money ChangeFee => MiningFeeRate.GetFee(ChangeScriptType.EstimateOutputVsize());
         public Money MinAllowedOutputAmount { get; }
         public Money MaxAllowedOutputAmount { get; }
         private Random Random { get; }
 
-        public FeeRate FeeRate { get; }
+        public FeeRate MiningFeeRate { get; }
         public IEnumerable<ScriptType> AllowedOutputTypes { get; }
         public int InputSize { get; } = 69;
         public int OutputSize { get; } = 33;
@@ -85,7 +87,7 @@ namespace Sake
                         others.AddRange(inputArray[j]);
                     }
                 }
-                yield return Decompose(currentUser.Select(x => x.EffectiveValue), filteredDenominations, availableVsize).Select(d => (ulong)d.Amount.Satoshi); ;
+                yield return Decompose(currentUser.Select(x => x.EffectiveValue), filteredDenominations, availableVsize).Select(d => (ulong)d.Amount.Satoshi);
             }
         }
 
@@ -284,7 +286,7 @@ namespace Sake
                 var loss = Money.Zero;
                 if (remaining >= MinAllowedOutputAmount + ChangeFee)
                 {
-                    var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
+                    var change = Output.FromAmount(remaining, ChangeScriptType, MiningFeeRate);
                     currentSet.Add(change);
                 }
                 else
@@ -342,7 +344,7 @@ namespace Sake
             var loss = Money.Zero;
             if (remaining >= MinAllowedOutputAmount + ChangeFee)
             {
-                var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
+                var change = Output.FromAmount(remaining, ChangeScriptType, MiningFeeRate);
                 naiveSet.Add(change);
             }
             else
@@ -354,7 +356,7 @@ namespace Sake
             // This can happen when smallest denom is larger than the input sum.
             if (naiveSet.Count == 0)
             {
-                var change = Output.FromAmount(remaining, ChangeScriptType, FeeRate);
+                var change = Output.FromAmount(remaining, ChangeScriptType, MiningFeeRate);
                 naiveSet.Add(change);
             }
 
@@ -430,7 +432,7 @@ namespace Sake
 
             if (remaining >= MinAllowedOutputAmount + ChangeFee)
             {
-                var changeOutput = Output.FromAmount(remaining, ScriptType.P2WPKH, FeeRate);
+                var changeOutput = Output.FromAmount(remaining, ScriptType.P2WPKH, MiningFeeRate);
                 yield return changeOutput;
             }
         }
@@ -460,11 +462,57 @@ namespace Sake
         /// <remarks>It won't be smaller than min allowed output amount.</remarks>
         public Money CalculateMinReasonableOutputAmount(Money minAllowedOutputAmount)
         {
-            var minEconomicalOutput = FeeRate.GetFee(
-                            Math.Max(
-                                ScriptType.P2WPKH.EstimateInputVsize() + ScriptType.P2WPKH.EstimateOutputVsize(),
-                                ScriptType.Taproot.EstimateInputVsize() + ScriptType.Taproot.EstimateOutputVsize()));
+            var minEconomicalOutput = MiningFeeRate.GetFee(MaxVsizeInputOutputPair);
             return Math.Max(minEconomicalOutput, minAllowedOutputAmount);
+        }
+
+        public Money CalculateSmallestReasonableEffectiveDenomination()
+            => CalculateSmallestReasonableEffectiveDenomination(MinAllowedOutputAmount, MaxAllowedOutputAmount, MiningFeeRate, MaxVsizeInputOutputPairScriptType);
+
+        /// <returns>Smallest effective denom that's larger than min reasonable output amount. </returns>
+        public static Money CalculateSmallestReasonableEffectiveDenomination(Money minReasonableOutputAmount, Money maxAllowedOutputAmount, FeeRate feeRate, ScriptType maxVsizeInputOutputPairScriptType)
+        {
+            var smallestEffectiveDenom = DenominationBuilder.CreateDenominations(
+                    minReasonableOutputAmount,
+                    maxAllowedOutputAmount,
+                    feeRate,
+                    new List<ScriptType>() { maxVsizeInputOutputPairScriptType })
+                .Min(x => x.EffectiveCost);
+
+            return smallestEffectiveDenom is null
+                ? throw new InvalidOperationException("Something's wrong with the denomination creation or with the parameters it got.")
+                : smallestEffectiveDenom;
+        }
+
+        internal IEnumerable<IEnumerable<Input>> RandomInputGroups(IEnumerable<Input> preRandomAmounts, int userCount)
+        {
+            var smallestEffectiveDenom = CalculateSmallestReasonableEffectiveDenomination();
+            for (int i = 0; i < 1000; i++)
+            {
+                var randomGroups = preRandomAmounts.RandomGroups(userCount);
+                bool cont = false;
+
+                foreach (var currentUser in randomGroups)
+                {
+                    var effectiveInputSum = currentUser.Sum(x => x.EffectiveValue);
+
+                    // If we find such things, then it's wrong randomization, try again.
+                    if (effectiveInputSum < smallestEffectiveDenom)
+                    {
+                        cont = true;
+                        break;
+                    }
+                }
+
+                if (cont)
+                {
+                    continue;
+                }
+
+                return randomGroups;
+            }
+
+            throw new InvalidOperationException("Couldn't find randomization of input groups where each are large enough.");
         }
     }
 }

@@ -4,8 +4,9 @@ namespace Sake
 {
     public static class DenominationBuilder
     {
-        public static IOrderedEnumerable<Output> CreateDenominations(Money minAllowedOutputAmount, Money maxAllowedOutputAmount, FeeRate feeRate, IEnumerable<ScriptType> allowedOutputTypes, Random random)
+        public static IOrderedEnumerable<Output> CreateDenominations(Money minAllowedOutputAmount, Money maxAllowedOutputAmount, FeeRate feeRate, IEnumerable<ScriptType> allowedOutputTypes, Random? random = null)
         {
+            random ??= Random.Shared;
             var denominations = new HashSet<Output>();
 
             Output CreateDenom(double sats)
