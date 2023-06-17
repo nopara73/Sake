@@ -73,30 +73,30 @@ namespace System
             return source.Skip(randomIndex).FirstOrDefault();
         }
 
-        public static IEnumerable<IEnumerable<T>> RandomGroups<T>(this IEnumerable<T> source, int? groupCount = null)
+        public static T[][] RandomGroups<T>(this IEnumerable<T> source, int? groupCount = null)
         {
             return source.OrderBy(item => Guid.NewGuid())
             .Select((item, index) => new { Item = item, GroupIndex = index % groupCount ?? new Random().Next(1, source.Count() + 1) })
             .GroupBy(item => item.GroupIndex,
-                     (key, group) => group.Select(groupItem => groupItem.Item).ToList());
+                     (key, group) => group.Select(groupItem => groupItem.Item).ToArray()).ToArray();
         }
 
-        public static IEnumerable<IEnumerable<T>> DeterministicRandomGroups<T>(this IEnumerable<T> source, int groupCount)
+        public static T[][] DeterministicRandomGroups<T>(this IEnumerable<T> source, int groupCount)
         {
             return source
                 .Select((item, index) => new { Item = item, GroupIndex = index % groupCount })
                 .GroupBy(item => item.GroupIndex,
-                     (key, group) => group.Select(groupItem => groupItem.Item).ToList());
+                     (key, group) => group.Select(groupItem => groupItem.Item).ToArray()).ToArray();
         }
 
-        public static IEnumerable<T> RandomElements<T>(this IEnumerable<T> list, int elementsCount)
+        public static T[] RandomElements<T>(this IEnumerable<T> list, int elementsCount)
         {
-            return list.OrderBy(arg => Guid.NewGuid()).Take(elementsCount);
+            return list.OrderBy(arg => Guid.NewGuid()).Take(elementsCount).ToArray();
         }
 
-        public static IEnumerable<T> DeterministicRandomElements<T>(this IEnumerable<T> list, int elementsCount)
+        public static T[] DeterministicRandomElements<T>(this IEnumerable<T> list, int elementsCount)
         {
-            return DeterministicRandomGroups(list, 1).First().Take(elementsCount);
+            return DeterministicRandomGroups(list, 1).First().Take(elementsCount).ToArray();
         }
 
         public static bool TryAdd<TKey, TValue>(this Dictionary<TKey, TValue> myDic, TKey key, TValue value)

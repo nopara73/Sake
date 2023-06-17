@@ -13,7 +13,7 @@ for (int i = 0; i < 100; i++)
 
     var min = Money.Satoshis(5000m);
     var max = Money.Coins(43000m);
-    var feeRate = new FeeRate(200m);
+    var feeRate = new FeeRate(1m);
     var random = new Random();
 
     var maxInputCost = Money.Satoshis(Math.Max(NBitcoinExtensions.P2wpkhInputVirtualSize, NBitcoinExtensions.P2trInputVirtualSize) * feeRate.SatoshiPerByte);
@@ -24,8 +24,10 @@ for (int i = 0; i < 100; i++)
         .RandomElements(inputCount)
         .Select(x => new Input(Money.Coins(x), allowedOutputTypes.RandomElement(random), feeRate));
 
-    var preGroups = preRandomAmounts.RandomGroups(userCount);
+
     var preMixer = new Mixer(feeRate, min, max, allowedOutputTypes, random);
+
+    var preGroups = preMixer.RandomInputGroups(preRandomAmounts, userCount);
     var preMix = preMixer.CompleteMix(preGroups);
 
     var remixCount = (int)(inputCount * remixRatio);
@@ -41,8 +43,8 @@ for (int i = 0; i < 100; i++)
         .Select(x => new Input(Money.Satoshis(x), allowedOutputTypes.RandomElement(random), feeRate));
 
     var newRoundAmounts = randomAmounts.Concat(remixAmounts);
-    var newRoundInputGroups = newRoundAmounts.RandomGroups(userCount).ToArray();
     var mixer = new Mixer(feeRate, min, max, allowedOutputTypes, random);
+    var newRoundInputGroups = mixer.RandomInputGroups(newRoundAmounts, userCount).ToArray();
     var outputGroups = mixer.CompleteMix(newRoundInputGroups).Select(x => x.ToArray()).ToArray();
 
     if ((ulong)newRoundInputGroups.SelectMany(x => x).Sum(x => x.EffectiveValue) <= outputGroups.SelectMany(x => x).Sum())
